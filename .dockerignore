@@ -1,0 +1,15 @@
+**/node_modules
+**/dist
+**/.git
+**/generated
+**/.vite
+**/coverage
+**/*.tsbuildinfo
+.workspaces
+.scan-tmp
+reports
+audit-result*.json
+**/.env
+**/.env.*
+!**/.env.example
+.claude

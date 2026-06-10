@@ -1,0 +1,155 @@
+// Schéma Prisma — Agentic-Hub
+// Stocke repositories, audits, résultats par dimension, findings, synthèses LLM
+// et artefacts bruts de scanners (traçabilité).
+
+generator client {
+  provider = "prisma-client-js"
+  output   = "../generated/client"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum AuditStatus {
+  queued
+  running
+  analyzing
+  done
+  failed
+}
+
+enum AuditTrigger {
+  manual
+  schedule
+  ci
+}
+
+enum Severity {
+  critical
+  high
+  medium
+  low
+  info
+}
+
+enum FindingStatus {
+  open
+  fixed
+  ignored
+}
+
+model Repository {
+  id            String   @id @default(cuid())
+  githubId      BigInt?  @unique
+  fullName      String   @unique // owner/repo
+  name          String
+  owner         String
+  url           String?
+  defaultBranch String   @default("main")
+  language      String?
+  private       Boolean  @default(false)
+  description   String?
+  lastAuditAt   DateTime?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  audits Audit[]
+
+  @@index([owner])
+}
+
+model Audit {
+  id           String       @id @default(cuid())
+  repository   Repository   @relation(fields: [repositoryId], references: [id], onDelete: Cascade)
+  repositoryId String
+  status       AuditStatus  @default(queued)
+  trigger      AuditTrigger @default(manual)
+  commitSha    String?
+  globalScore  Float?
+  loc          Int          @default(0)
+  files        Int          @default(0)
+  languages    String[]     @default([])
+  toolsRun     String[]     @default([])
+  toolsSkipped String[]     @default([])
+  error        String?
+  startedAt    DateTime?
+  finishedAt   DateTime?
+  createdAt    DateTime     @default(now())
+  updatedAt    DateTime     @updatedAt
+
+  dimensions DimensionResult[]
+  findings   Finding[]
+  synthesis  Synthesis?
+  artifacts  ScanArtifact[]
+
+  @@index([repositoryId, createdAt])
+  @@index([status])
+}
+
+model DimensionResult {
+  id        String @id @default(cuid())
+  audit     Audit  @relation(fields: [auditId], references: [id], onDelete: Cascade)
+  auditId   String
+  dimension String
+  score     Float
+  summary   String @default("")
+  counts    Json // { critical, high, medium, low, info }
+
+  @@unique([auditId, dimension])
+}
+
+model Finding {
+  id          String        @id @default(cuid())
+  audit       Audit         @relation(fields: [auditId], references: [id], onDelete: Cascade)
+  auditId     String
+  dimension   String
+  tool        String
+  severity    Severity
+  ruleId      String        @default("")
+  title       String
+  description String        @default("")
+  filePath    String?
+  line        Int?
+  remediation String        @default("")
+  reference   String?
+  fingerprint String
+  status      FindingStatus @default(open)
+  createdAt   DateTime      @default(now())
+
+  @@index([auditId, severity])
+  @@index([auditId, dimension])
+  @@index([fingerprint])
+}
+
+model Synthesis {
+  id               String   @id @default(cuid())
+  audit            Audit    @relation(fields: [auditId], references: [id], onDelete: Cascade)
+  auditId          String   @unique
+  executiveSummary String
+  top10            Json
+  roadmap7d        Json
+  roadmap30d       Json
+  model            String
+  llmGenerated     Boolean  @default(false)
+  createdAt        DateTime @default(now())
+}
+
+model ScanArtifact {
+  id         String   @id @default(cuid())
+  audit      Audit    @relation(fields: [auditId], references: [id], onDelete: Cascade)
+  auditId    String
+  tool       String
+  rawOutput  String // JSON brut (texte) de l'outil
+  createdAt  DateTime @default(now())
+
+  @@index([auditId])
+}
+
+// Paramètres globaux (pondérations de scoring, modèle Ollama, etc.) — singleton.
+model Setting {
+  id        Int      @id @default(1)
+  scoring   Json?
+  updatedAt DateTime @updatedAt
+}

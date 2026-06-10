@@ -1,0 +1,75 @@
+name: agentic-hub
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-agentic}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-agentic}
+      POSTGRES_DB: ${POSTGRES_DB:-agentic_hub}
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-agentic} -d ${POSTGRES_DB:-agentic_hub}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  ollama:
+    image: ollama/ollama:latest
+    restart: unless-stopped
+    ports:
+      - "11434:11434"
+    volumes:
+      - ollama:/root/.ollama
+    # Décommenter pour activer le GPU NVIDIA :
+    # deploy:
+    #   resources:
+    #     reservations:
+    #       devices:
+    #         - driver: nvidia
+    #           count: all
+    #           capabilities: [gpu]
+
+  api:
+    build:
+      context: ..
+      dockerfile: apps/api/Dockerfile
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: postgresql://${POSTGRES_USER:-agentic}:${POSTGRES_PASSWORD:-agentic}@postgres:5432/${POSTGRES_DB:-agentic_hub}?schema=public
+      API_PORT: 3000
+      WEB_ORIGIN: ${WEB_ORIGIN:-http://localhost:8080}
+      INGEST_TOKEN: ${INGEST_TOKEN:-change-me-ingest-token}
+      GITHUB_TOKEN: ${GITHUB_TOKEN:-}
+      GITHUB_OWNER: ${GITHUB_OWNER:-}
+      GITHUB_OWNER_TYPE: ${GITHUB_OWNER_TYPE:-user}
+      AUDIT_WORKFLOW_REPO: ${AUDIT_WORKFLOW_REPO:-}
+      AUDIT_WORKFLOW_FILE: ${AUDIT_WORKFLOW_FILE:-audit.yml}
+      OLLAMA_URL: http://ollama:11434
+      OLLAMA_MODEL: ${OLLAMA_MODEL:-qwen2.5-coder:7b}
+      OLLAMA_ENABLED: ${OLLAMA_ENABLED:-true}
+    ports:
+      - "${API_HOST_PORT:-3000}:3000"
+
+  web:
+    build:
+      context: ..
+      dockerfile: apps/web/Dockerfile
+      args:
+        VITE_API_BASE: ${VITE_API_BASE:-http://localhost:3000}
+    restart: unless-stopped
+    depends_on:
+      - api
+    ports:
+      - "${WEB_PORT:-8080}:80"
+
+volumes:
+  pgdata:
+  ollama:

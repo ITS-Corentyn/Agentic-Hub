@@ -1,0 +1,88 @@
+name: Audit (dispatch → ingestion)
+
+# Mode hybride : déclenché par l'API (workflow_dispatch) pour auditer un repo
+# cible, exécute la suite de scanners open-source, puis POST les résultats à l'API.
+# AUCUNE clé Claude / Anthropic n'est utilisée.
+
+on:
+  workflow_dispatch:
+    inputs:
+      audit_id:
+        description: "Identifiant d'audit (créé par l'API)"
+        required: true
+      target_repo:
+        description: "Repository à auditer (owner/repo)"
+        required: true
+      ref:
+        description: "Branche/ref du repo cible"
+        required: false
+        default: ""
+
+jobs:
+  audit:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout Agentic-Hub (moteur d'audit)
+        uses: actions/checkout@v4
+        with:
+          path: agentic-hub
+
+      - name: Checkout repo cible
+        uses: actions/checkout@v4
+        with:
+          repository: ${{ inputs.target_repo }}
+          ref: ${{ inputs.ref }}
+          path: target
+          token: ${{ secrets.AUDIT_GITHUB_TOKEN }}
+
+      - name: Setup Node + pnpm
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - run: corepack enable
+
+      - name: Build du moteur d'audit
+        working-directory: agentic-hub
+        run: |
+          pnpm install --frozen-lockfile=false
+          pnpm --filter @agentic-hub/shared build
+          pnpm --filter @agentic-hub/audit-engine build
+
+      - name: Installer les scanners
+        run: |
+          pipx install semgrep || pip install semgrep
+          curl -sfL https://raw.githubusercontent.com/aquasecurity/trivy/main/contrib/install.sh | sudo sh -s -- -b /usr/local/bin
+          GITLEAKS_VERSION=8.21.2
+          curl -sSL "https://github.com/gitleaks/gitleaks/releases/download/v${GITLEAKS_VERSION}/gitleaks_${GITLEAKS_VERSION}_linux_x64.tar.gz" | sudo tar -xz -C /usr/local/bin gitleaks
+          curl -sSL -o osv-scanner "https://github.com/google/osv-scanner/releases/download/v1.9.1/osv-scanner_linux_amd64"
+          sudo install osv-scanner /usr/local/bin/osv-scanner
+          npm install -g eslint@9 @eslint/js@9 jscpd@4 dependency-cruiser@16 madge@8
+
+      - name: Exécuter l'audit
+        run: |
+          COMMIT_SHA=$(git -C target rev-parse HEAD)
+          node agentic-hub/packages/audit-engine/dist/cli.js scan ./target \
+            --out result.json \
+            --report report.md \
+            --audit-id "${{ inputs.audit_id }}" \
+            --commit "$COMMIT_SHA" \
+            --repo "${{ inputs.target_repo }}"
+
+      - name: Ingestion vers l'API
+        if: ${{ secrets.INGEST_URL != '' }}
+        run: |
+          curl -sS -X POST "${{ secrets.INGEST_URL }}/api/ingest" \
+            -H "Content-Type: application/json" \
+            -H "Authorization: Bearer ${{ secrets.INGEST_TOKEN }}" \
+            --data-binary @result.json \
+            --fail-with-body
+
+      - name: Publier le rapport en artefact
+        uses: actions/upload-artifact@v4
+        with:
+          name: audit-${{ inputs.audit_id }}
+          path: |
+            result.json
+            report.md

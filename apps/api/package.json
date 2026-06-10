@@ -1,0 +1,28 @@
+{
+  "name": "@agentic-hub/api",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "main": "./dist/server.js",
+  "scripts": {
+    "dev": "tsx watch src/server.ts",
+    "build": "tsc -p tsconfig.json",
+    "start": "node dist/server.js",
+    "typecheck": "tsc -p tsconfig.json --noEmit"
+  },
+  "dependencies": {
+    "@agentic-hub/audit-engine": "workspace:*",
+    "@agentic-hub/db": "workspace:*",
+    "@agentic-hub/shared": "workspace:*",
+    "@fastify/cors": "^10.0.1",
+    "@octokit/rest": "^21.0.2",
+    "fastify": "^5.2.1",
+    "pg-boss": "^10.1.6",
+    "zod": "^3.24.1"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.5",
+    "tsx": "^4.19.2",
+    "typescript": "^5.7.3"
+  }
+}

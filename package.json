@@ -1,0 +1,40 @@
+{
+  "name": "agentic-hub",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Plateforme d'audit multi-repos open-source (sécurité, qualité, dépendances, archi, perf) avec narration LLM locale.",
+  "license": "MIT",
+  "packageManager": "pnpm@10.33.0",
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "build": "pnpm -r build",
+    "predev": "pnpm --filter @agentic-hub/db build && pnpm --filter @agentic-hub/shared build && pnpm --filter @agentic-hub/audit-engine build",
+    "dev": "pnpm --parallel --filter \"./apps/*\" dev",
+    "dev:api": "pnpm --filter @agentic-hub/api dev",
+    "dev:web": "pnpm --filter @agentic-hub/web dev",
+    "typecheck": "pnpm -r typecheck",
+    "lint": "pnpm -r lint",
+    "db:generate": "pnpm --filter @agentic-hub/db generate",
+    "db:migrate": "pnpm --filter @agentic-hub/db migrate",
+    "db:push": "pnpm --filter @agentic-hub/db push",
+    "db:seed": "pnpm --filter @agentic-hub/db seed",
+    "scan": "pnpm --filter @agentic-hub/audit-engine scan",
+    "compose:up": "docker compose -f infra/docker-compose.yml up -d",
+    "compose:down": "docker compose -f infra/docker-compose.yml down"
+  },
+  "devDependencies": {
+    "prettier": "^3.4.2",
+    "typescript": "^5.7.3"
+  },
+  "pnpm": {
+    "onlyBuiltDependencies": [
+      "esbuild",
+      "@prisma/client",
+      "@prisma/engines",
+      "prisma",
+      "vue-demi"
+    ]
+  }
+}
