@@ -18,7 +18,7 @@ exit /b
 @@PSSTART@@
 param([string]$BaseDir)
 $ErrorActionPreference = 'Stop'
-$BaseDir = (Resolve-Path $BaseDir).Path  # normalise (gère le `.` ajoute par le .cmd)
+$BaseDir = (Resolve-Path $BaseDir).Path  # normalise (gere le point ajoute par le .cmd)
 function Step($m){ Write-Host "`n==> $m" -ForegroundColor Magenta }
 function Info($m){ Write-Host "  $m" -ForegroundColor Cyan }
 function Ok($m){ Write-Host "  $m" -ForegroundColor Green }
