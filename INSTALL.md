@@ -112,6 +112,18 @@ Une fois l'app lancée, pour récupérer **tes repos et ceux de tes organisation
 
 > Alternative sans OAuth : `GITHUB_TOKEN=<PAT>` dans `.env` (scope `repo`).
 
+## ⏹️ Arrêter vs 🗑️ Désinstaller
+
+- **Arrêter** (met en pause, conserve tout) : `Stop-Windows.cmd` / `Stop-macOS.command`.
+  Redémarrer ensuite avec `Install-*` (ou `Update-*`).
+- **Désinstaller** (supprime l'application) : **`Uninstall-Windows.cmd`** / **`Uninstall-macOS.command`**.
+  L'assistant demande, avec confirmation, s'il faut aussi supprimer :
+  1. les **données** (historique d'audits + modèles LLM téléchargés) — sinon conservées ;
+  2. les **images Docker** construites (`agentic-hub-api` / `agentic-hub-web`) — les images de
+     base postgres/ollama sont gardées ;
+  3. le **dossier** du projet.
+  La **mise à jour automatique** (tâche planifiée / LaunchAgent) est retirée dans tous les cas.
+
 ## Dépannage
 
 - **« Docker n'est pas disponible »** : lance Docker Desktop et attends qu'il soit prêt.
