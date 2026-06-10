@@ -5,6 +5,12 @@ import { registerRoutes } from './routes.js';
 import { registerAuthRoutes } from './auth.js';
 import { startQueue } from './queue.js';
 
+// Fastify sérialise via JSON.stringify, qui ne gère pas les BigInt
+// (ex: Repository.githubId). On les sérialise en chaîne.
+(BigInt.prototype as unknown as { toJSON: () => string }).toJSON = function () {
+  return this.toString();
+};
+
 async function main() {
   const app = Fastify({
     logger: { level: process.env.LOG_LEVEL ?? 'info' },
