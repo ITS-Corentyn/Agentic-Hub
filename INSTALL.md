@@ -4,6 +4,20 @@ Installation **en un clic**, **sans Node ni npm** : tout s'exécute dans Docker.
 L'installeur détecte ton matériel (GPU/VRAM ou RAM) et choisit automatiquement le
 modèle LLM adapté, puis télécharge tout le nécessaire.
 
+## 📤 Partager l'installeur (un seul fichier suffit)
+
+Le fichier d'installation est **autonome** : tu peux l'envoyer seul à un collègue.
+Au double-clic, il installe Docker et Git si besoin, **clone le projet**, puis lance tout.
+
+- **Windows** → partage **`Install-Windows.cmd`**
+- **macOS** → partage **`Install-macOS.command`**
+
+> Le dépôt est **privé** : au premier clonage, ton collègue devra **s'authentifier à
+> GitHub** (une fenêtre de connexion Git s'ouvre automatiquement). Il lui faut donc un
+> accès au dépôt `ITS-Corentyn/Agentic-Hub`. Aucun autre fichier, ni Node/npm, n'est requis.
+
+Le même fichier fonctionne aussi **à l'intérieur d'un dépôt déjà cloné** (il l'utilise sur place).
+
 ## Prérequis unique : Docker Desktop
 
 C'est le **seul** logiciel à avoir (il embarque tout le reste). Si tu ne l'as pas,
