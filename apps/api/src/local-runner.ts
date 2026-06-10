@@ -4,7 +4,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { prisma } from '@agentic-hub/db';
 import { runAudit } from '@agentic-hub/audit-engine';
-import { config } from './config.js';
+import { getActiveToken } from './github.js';
 import { persistAuditResult } from './service.js';
 import { sseHub } from './sse.js';
 
@@ -29,7 +29,8 @@ export async function runLocalAudit(auditId: string): Promise<void> {
     });
     sseHub.publish({ type: 'status', auditId, status: 'running', message: `Clonage de ${repo.fullName}…`, progress: 10 });
 
-    const cloneUrl = buildCloneUrl(repo.url ?? `https://github.com/${repo.fullName}`);
+    const token = await getActiveToken();
+    const cloneUrl = buildCloneUrl(repo.url ?? `https://github.com/${repo.fullName}`, token);
     const clone = spawnSync(
       'git',
       ['clone', '--depth', '1', '--branch', repo.defaultBranch, cloneUrl, workdir],
@@ -73,10 +74,10 @@ export async function runLocalAudit(auditId: string): Promise<void> {
   }
 }
 
-function buildCloneUrl(url: string): string {
+function buildCloneUrl(url: string, token: string | null): string {
   // Injecte le token pour les repos privés (https://x-access-token:TOKEN@github.com/...).
-  if (config.github.token && url.startsWith('https://github.com/')) {
-    return url.replace('https://', `https://x-access-token:${config.github.token}@`);
+  if (token && url.startsWith('https://github.com/')) {
+    return url.replace('https://', `https://x-access-token:${token}@`);
   }
   return url;
 }

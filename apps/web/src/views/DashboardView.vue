@@ -116,7 +116,10 @@ onMounted(load);
 
     <p v-if="loading" class="text-sm text-slate-400">Chargement…</p>
     <p v-else-if="!repos.length" class="card p-8 text-center text-slate-400">
-      Aucun repository. Configure <code>GITHUB_TOKEN</code> + <code>GITHUB_OWNER</code> puis clique « Synchroniser GitHub ».
+      Aucun repository. Clique « <strong>Se connecter</strong> » (en haut à droite) pour lier ton compte GitHub,
+      puis « Synchroniser GitHub » pour importer tes repos et ceux de tes organisations.
+      <br />
+      <span class="text-xs">Alternative sans OAuth : définir <code>GITHUB_TOKEN</code> dans <code>.env</code>.</span>
     </p>
 
     <div v-else ref="grid" class="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3">

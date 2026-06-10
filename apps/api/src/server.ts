@@ -2,6 +2,7 @@ import Fastify from 'fastify';
 import cors from '@fastify/cors';
 import { config } from './config.js';
 import { registerRoutes } from './routes.js';
+import { registerAuthRoutes } from './auth.js';
 import { startQueue } from './queue.js';
 
 async function main() {
@@ -15,6 +16,24 @@ async function main() {
     methods: ['GET', 'POST', 'PUT', 'DELETE'],
   });
 
+  // Tolère un corps JSON vide (les POST « déclencheurs » n'ont pas de body) :
+  // évite l'erreur Fastify FST_ERR_CTP_EMPTY_JSON_BODY (400 Bad Request).
+  app.addContentTypeParser(
+    'application/json',
+    { parseAs: 'string' },
+    (_req, body, done) => {
+      const text = (body as string).trim();
+      if (!text) return done(null, {});
+      try {
+        done(null, JSON.parse(text));
+      } catch (err) {
+        (err as { statusCode?: number }).statusCode = 400;
+        done(err as Error, undefined);
+      }
+    },
+  );
+
+  await registerAuthRoutes(app);
   await registerRoutes(app);
 
   // Démarre la file pg-boss (workers audit local + synthèse).

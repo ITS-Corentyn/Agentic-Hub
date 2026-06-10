@@ -76,9 +76,12 @@ export interface AuditDetail {
 }
 
 async function http<T>(path: string, init?: RequestInit): Promise<T> {
+  // N'ajoute Content-Type que s'il y a un corps : un POST sans body avec
+  // Content-Type JSON est rejeté par Fastify (400 Bad Request).
+  const headers: Record<string, string> = init?.body ? { 'Content-Type': 'application/json' } : {};
   const res = await fetch(`${BASE}${path}`, {
-    headers: { 'Content-Type': 'application/json' },
     ...init,
+    headers: { ...headers, ...(init?.headers as Record<string, string>) },
   });
   if (!res.ok) {
     const body = await res.json().catch(() => ({}));
@@ -87,8 +90,20 @@ async function http<T>(path: string, init?: RequestInit): Promise<T> {
   return res.json() as Promise<T>;
 }
 
+export interface GithubStatus {
+  connected: boolean;
+  source: 'oauth' | 'pat' | 'none';
+  login: string | null;
+  name: string | null;
+  avatarUrl: string | null;
+  oauthConfigured?: boolean;
+}
+
 export const api = {
   health: () => http<{ ok: boolean; hybridMode: boolean; ollama: boolean }>('/api/health'),
+  githubStatus: () => http<GithubStatus>('/api/auth/github/status'),
+  githubLoginUrl: () => `${BASE}/api/auth/github/login`,
+  githubLogout: () => http<{ ok: boolean }>('/api/auth/github/logout', { method: 'POST' }),
   listRepos: () => http<RepoSummary[]>('/api/repositories'),
   getRepo: (id: string) => http<RepoSummary>(`/api/repositories/${id}`),
   syncRepos: (owner?: string, ownerType?: 'user' | 'org') =>

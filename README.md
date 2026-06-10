@@ -60,8 +60,33 @@ docker compose -f infra/docker-compose.yml exec ollama ollama pull qwen2.5-coder
 - API : http://localhost:3000 (`/api/health`)
 
 En **mode local** (sans `AUDIT_WORKFLOW_REPO`), l'API clone et scanne directement les repos
-(l'image API embarque tous les scanners). Renseigner `GITHUB_TOKEN` + `GITHUB_OWNER`,
-cliquer **« Synchroniser GitHub »**, puis **« Auditer »** sur un repo.
+(l'image API embarque tous les scanners).
+
+## 🔐 Connexion GitHub (récupérer ses repos + organisations)
+
+Deux façons de connecter ton compte :
+
+### Option A — Connexion via compte GitHub (OAuth, recommandée)
+1. Va sur https://github.com/settings/developers → **New OAuth App**.
+2. Renseigne :
+   - **Homepage URL** : `http://localhost:8088` (ton interface web)
+   - **Authorization callback URL** : `http://localhost:3200/api/auth/github/callback`
+     (le port doit correspondre à `API_HOST_PORT`)
+3. Copie le **Client ID**, génère un **Client secret**, et place-les dans `.env` :
+   ```
+   GITHUB_OAUTH_CLIENT_ID=...
+   GITHUB_OAUTH_CLIENT_SECRET=...
+   ```
+4. Redémarre l'API, ouvre l'UI, clique **« Se connecter »** → autorise.
+   Tous tes repos **et ceux de tes organisations** sont alors récupérables via **« Synchroniser GitHub »**.
+
+### Option B — Personal Access Token (sans OAuth)
+1. https://github.com/settings/tokens → **Generate new token**
+   - *Classic* : cocher **`repo`** (+ `workflow` pour le mode hybride)
+   - ou *Fine-grained* : **Contents: Read-only** sur les repos voulus
+2. Place-le dans `.env` : `GITHUB_TOKEN=...` (et éventuellement `GITHUB_OWNER=<user-ou-org>`).
+
+> Le token OAuth est stocké en base (outil local mono-utilisateur). « Déconnexion » le supprime.
 
 ## 🛠️ Développement (sans Docker)
 

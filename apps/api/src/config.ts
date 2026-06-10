@@ -11,6 +11,16 @@ export const config = {
     /** Repo hébergeant le workflow d'audit (owner/repo). Vide ⇒ mode local. */
     workflowRepo: process.env.AUDIT_WORKFLOW_REPO ?? '',
     workflowFile: process.env.AUDIT_WORKFLOW_FILE ?? 'audit.yml',
+    oauth: {
+      clientId: process.env.GITHUB_OAUTH_CLIENT_ID ?? '',
+      clientSecret: process.env.GITHUB_OAUTH_CLIENT_SECRET ?? '',
+      /** URL de callback enregistrée dans l'OAuth App GitHub. */
+      callbackUrl:
+        process.env.GITHUB_OAUTH_CALLBACK_URL ??
+        `http://localhost:${process.env.API_HOST_PORT ?? 3000}/api/auth/github/callback`,
+      /** Scopes demandés : `repo` (repos privés) + `read:org` (organisations). */
+      scope: process.env.GITHUB_OAUTH_SCOPE ?? 'repo read:org',
+    },
   },
   ollama: {
     url: process.env.OLLAMA_URL ?? 'http://localhost:11434',

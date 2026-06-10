@@ -153,3 +153,16 @@ model Setting {
   scoring   Json?
   updatedAt DateTime @updatedAt
 }
+
+// Connexion GitHub OAuth (singleton, outil mono-utilisateur local).
+// Stocke le token d'accès du compte connecté pour lister repos + organisations.
+model GithubAuth {
+  id          Int      @id @default(1)
+  login       String
+  name        String?
+  avatarUrl   String?
+  accessToken String
+  scope       String?
+  tokenType   String?
+  connectedAt DateTime @default(now())
+}

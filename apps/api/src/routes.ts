@@ -8,7 +8,7 @@ import {
 } from '@agentic-hub/shared';
 import { buildDependabotYaml } from '@agentic-hub/audit-engine';
 import { config } from './config.js';
-import { dispatchAuditWorkflow, getHeadSha, listRepositories } from './github.js';
+import { dispatchAuditWorkflow, getActiveToken, getHeadSha, listRepositories } from './github.js';
 import { enqueueLocalAudit } from './queue.js';
 import { buildReportMarkdown, loadAuditResult, persistAuditResult } from './service.js';
 import { sseHub } from './sse.js';
@@ -62,10 +62,12 @@ export async function registerRoutes(app: FastifyInstance) {
     return repo;
   });
 
-  // Synchronise les repos depuis GitHub.
+  // Synchronise les repos depuis GitHub (compte OAuth connecté ou PAT).
   app.post('/api/repositories/sync', async (req, reply) => {
-    if (!config.github.token) {
-      return reply.code(400).send({ error: 'GITHUB_TOKEN non configuré' });
+    if (!(await getActiveToken())) {
+      return reply
+        .code(400)
+        .send({ error: 'Aucune connexion GitHub. Connecte un compte (bouton GitHub) ou définis GITHUB_TOKEN.' });
     }
     const body = (req.body ?? {}) as { owner?: string; ownerType?: 'user' | 'org' };
     try {
