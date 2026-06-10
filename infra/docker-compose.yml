@@ -9,7 +9,8 @@ services:
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-agentic}
       POSTGRES_DB: ${POSTGRES_DB:-agentic_hub}
     ports:
-      - "5432:5432"
+      # Port hote uniquement pour un client DB externe ; l'API se connecte en interne.
+      - "${POSTGRES_HOST_PORT:-5432}:5432"
     volumes:
       - pgdata:/var/lib/postgresql/data
     healthcheck:
@@ -22,7 +23,7 @@ services:
     image: ollama/ollama:latest
     restart: unless-stopped
     ports:
-      - "11434:11434"
+      - "${OLLAMA_HOST_PORT:-11434}:11434"
     volumes:
       - ollama:/root/.ollama
     # Décommenter pour activer le GPU NVIDIA :

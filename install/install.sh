@@ -108,12 +108,16 @@ set_env() {
 
 API_PORT="$(resolve_port API_HOST_PORT 3000 3200 3300 4000 4100 5005)"
 WEB_PORT="$(resolve_port WEB_PORT 8080 8088 8090 8200 8888)"
+PG_PORT="$(resolve_port POSTGRES_HOST_PORT 5432 5433 5440 15432 55432)"
+OLLAMA_PORT="$(resolve_port OLLAMA_HOST_PORT 11434 11435 11440 21434)"
 set_env API_HOST_PORT "$API_PORT"
 set_env WEB_PORT "$WEB_PORT"
+set_env POSTGRES_HOST_PORT "$PG_PORT"
+set_env OLLAMA_HOST_PORT "$OLLAMA_PORT"
 set_env WEB_ORIGIN "http://localhost:${WEB_PORT}"
 set_env VITE_API_BASE "http://localhost:${API_PORT}"
 set_env OLLAMA_MODEL "$MODEL"
-green "API:${API_PORT}  Web:${WEB_PORT}  Modèle:${MODEL}"
+green "API:${API_PORT}  Web:${WEB_PORT}  DB:${PG_PORT}  Ollama:${OLLAMA_PORT}  Modèle:${MODEL}"
 
 # ── 4. Build + démarrage ─────────────────────────────────────
 COMPOSE=(docker compose --env-file "$ENV_FILE" -f "$ROOT/infra/docker-compose.yml")
@@ -196,7 +200,7 @@ github_oauth_setup
 
 # ── 6. Téléchargement du modèle (barre de progression) ───────
 step "Téléchargement du modèle ${MODEL} (une seule fois)"
-if ollama_pull_pretty "$MODEL" 11434; then
+if ollama_pull_pretty "$MODEL" "$OLLAMA_PORT"; then
   green "Modèle prêt."
 else
   yellow "Téléchargement standard (barre indisponible)..."

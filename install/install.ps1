@@ -212,14 +212,18 @@ if (-not (Test-Path $envPath)) {
   Info ".env existant conserve (secrets preserves)."
 }
 
-$apiPort = Resolve-Port $envPath 'API_HOST_PORT' @(3000, 3200, 3300, 4000, 4100, 5005)
-$webPort = Resolve-Port $envPath 'WEB_PORT' @(8080, 8088, 8090, 8200, 8888)
+$apiPort    = Resolve-Port $envPath 'API_HOST_PORT'     @(3000, 3200, 3300, 4000, 4100, 5005)
+$webPort    = Resolve-Port $envPath 'WEB_PORT'          @(8080, 8088, 8090, 8200, 8888)
+$pgPort     = Resolve-Port $envPath 'POSTGRES_HOST_PORT' @(5432, 5433, 5440, 15432, 55432)
+$ollamaPort = Resolve-Port $envPath 'OLLAMA_HOST_PORT'  @(11434, 11435, 11440, 21434)
 Set-EnvVar $envPath 'API_HOST_PORT' $apiPort
 Set-EnvVar $envPath 'WEB_PORT' $webPort
+Set-EnvVar $envPath 'POSTGRES_HOST_PORT' $pgPort
+Set-EnvVar $envPath 'OLLAMA_HOST_PORT' $ollamaPort
 Set-EnvVar $envPath 'WEB_ORIGIN' "http://localhost:$webPort"
 Set-EnvVar $envPath 'VITE_API_BASE' "http://localhost:$apiPort"
 Set-EnvVar $envPath 'OLLAMA_MODEL' $plan.Model
-Ok "API:$apiPort  Web:$webPort  Modele:$($plan.Model)"
+Ok "API:$apiPort  Web:$webPort  DB:$pgPort  Ollama:$ollamaPort  Modele:$($plan.Model)"
 
 # -- 4. Build + demarrage -------------------------------------
 $composeArgs = @('--env-file', $envPath, '-f', (Join-Path $RepoRoot 'infra\docker-compose.yml'))
@@ -240,7 +244,7 @@ Invoke-GithubOAuthSetup $envPath $apiPort $webPort $composeArgs
 
 # -- 6. Telechargement du modele LLM (barre de progression) ---
 Step "Telechargement du modele $($plan.Model) (une seule fois, peut etre long)"
-if (Invoke-OllamaPull $plan.Model 11434) {
+if (Invoke-OllamaPull $plan.Model $ollamaPort) {
   Ok "Modele pret."
 } else {
   Warn "Telechargement standard en cours (barre indisponible)..."
