@@ -17,7 +17,9 @@ pause
 exit /b
 @@PSSTART@@
 param([string]$BaseDir)
-$ErrorActionPreference = 'Stop'
+# EAP=Continue : git ecrit sa progression sur stderr ; sous 'Stop' cela ferait
+# planter le bootstrap. On verifie le resultat via la presence des fichiers.
+$ErrorActionPreference = 'Continue'
 $BaseDir = (Resolve-Path $BaseDir).Path  # normalise (gere le point ajoute par le .cmd)
 function Step($m){ Write-Host "`n==> $m" -ForegroundColor Magenta }
 function Info($m){ Write-Host "  $m" -ForegroundColor Cyan }
@@ -49,10 +51,10 @@ if (Test-Path (Join-Path $BaseDir 'infra\docker-compose.yml')) {
 
   if (Test-Path (Join-Path $RepoRoot '.git')) {
     Step "Mise a jour du projet (git pull)"
-    git -C $RepoRoot pull --ff-only
+    & git -C $RepoRoot pull --ff-only 2>&1 | Write-Host
   } else {
     Step "Clonage du projet (authentifie-toi dans la fenetre GitHub si demande)"
-    git clone $RepoUrl $RepoRoot
+    & git clone $RepoUrl $RepoRoot 2>&1 | Write-Host
   }
   if (-not (Test-Path (Join-Path $RepoRoot 'install\install.ps1'))) {
     Warn "Echec de recuperation du projet."; Read-Host "Entree pour quitter"; exit 1

@@ -2,14 +2,16 @@
   Agentic-Hub - Installeur Windows (sans Node/npm). Tout tourne dans Docker.
   (Texte volontairement en ASCII : Windows PowerShell 5.1 lit les .ps1 sans BOM
    en ANSI, donc les accents casseraient l'analyse.)
-    1. verifie Docker Desktop (et propose de l'installer via winget) ;
+    1. verifie / demarre Docker Desktop ;
     2. detecte le materiel (GPU NVIDIA / VRAM ou RAM) et choisit le modele Ollama ;
     3. prepare .env (ports libres, modele) ;
     4. build + demarre la stack (postgres, ollama, api, web) ;
     5. telecharge le modele LLM ;
     6. ouvre l'interface dans le navigateur.
 #>
-$ErrorActionPreference = 'Stop'
+# EAP=Continue : les commandes natives (docker, git, ollama) ecrivent sur stderr ;
+# sous 'Stop' cela ferait planter le script. On verifie les codes de sortie a la main.
+$ErrorActionPreference = 'Continue'
 $RepoRoot = (Resolve-Path "$PSScriptRoot\..").Path
 
 function Info($m) { Write-Host "  $m" -ForegroundColor Cyan }
@@ -18,26 +20,50 @@ function Warn($m) { Write-Host "  $m" -ForegroundColor Yellow }
 function Step($m) { Write-Host "`n==> $m" -ForegroundColor Magenta }
 
 # -- 1. Docker ------------------------------------------------
-function Test-Docker {
-  if (-not (Get-Command docker -ErrorAction SilentlyContinue)) { return $false }
-  docker info *> $null
+function Test-DockerCli { [bool](Get-Command docker -ErrorAction SilentlyContinue) }
+function Test-DockerDaemon {
+  & docker info > $null 2>&1
   return ($LASTEXITCODE -eq 0)
+}
+function Start-DockerDesktop {
+  $candidats = @(
+    (Join-Path $env:ProgramFiles 'Docker\Docker\Docker Desktop.exe'),
+    (Join-Path ${env:ProgramFiles(x86)} 'Docker\Docker\Docker Desktop.exe'),
+    (Join-Path $env:LOCALAPPDATA 'Docker\Docker Desktop.exe')
+  )
+  $exe = $candidats | Where-Object { $_ -and (Test-Path $_) } | Select-Object -First 1
+  if ($exe) { Start-Process $exe | Out-Null; return $true }
+  return $false
 }
 
 Step "Verification de Docker"
-if (-not (Test-Docker)) {
-  Warn "Docker n'est pas disponible (non installe ou non demarre)."
+if (-not (Test-DockerCli)) {
+  Warn "Docker n'est pas installe."
   if (Get-Command winget -ErrorAction SilentlyContinue) {
     $r = Read-Host "  Installer Docker Desktop via winget maintenant ? (o/N)"
     if ($r -eq 'o' -or $r -eq 'O') {
       winget install -e --id Docker.DockerDesktop --accept-source-agreements --accept-package-agreements
-      Warn "Docker Desktop installe. Demarre-le (icone Docker), attends qu'il soit pret, puis relance ce script."
+      Warn "Docker Desktop installe. Demarre-le (icone Docker), attends l'icone verte, puis relance ce script."
       Read-Host "Appuie sur Entree pour quitter"; exit 1
     }
   }
   Warn "Installe Docker Desktop : https://www.docker.com/products/docker-desktop/"
-  Warn "Demarre-le puis relance ce script."
   Read-Host "Appuie sur Entree pour quitter"; exit 1
+}
+
+if (-not (Test-DockerDaemon)) {
+  Warn "Docker Desktop est installe mais le moteur n'est pas demarre."
+  if (Start-DockerDesktop) {
+    Info "Demarrage de Docker Desktop en cours... (jusqu'a 180s)"
+    $deadline = (Get-Date).AddSeconds(180)
+    while (((Get-Date) -lt $deadline) -and (-not (Test-DockerDaemon))) { Start-Sleep -Seconds 3 }
+  } else {
+    Warn "Lance Docker Desktop manuellement, attends l'icone verte, puis relance ce script."
+  }
+  if (-not (Test-DockerDaemon)) {
+    Warn "Le moteur Docker n'est toujours pas pret. Ouvre Docker Desktop, attends qu'il soit 'running', puis relance ce script."
+    Read-Host "Appuie sur Entree pour quitter"; exit 1
+  }
 }
 Ok "Docker est pret."
 
@@ -117,18 +143,18 @@ $composeArgs = @('--env-file', $envPath, '-f', (Join-Path $RepoRoot 'infra\docke
 if ($plan.UseGpu) { $composeArgs += @('-f', (Join-Path $RepoRoot 'infra\docker-compose.gpu.yml')) }
 
 Step "Construction et demarrage de la stack (peut prendre plusieurs minutes)"
-docker compose @composeArgs up -d --build
+& docker compose @composeArgs up -d --build 2>&1 | Write-Host
 if ($LASTEXITCODE -ne 0 -and $plan.UseGpu) {
   Warn "Echec avec le GPU - nouvelle tentative en mode CPU."
   $composeArgs = @('--env-file', $envPath, '-f', (Join-Path $RepoRoot 'infra\docker-compose.yml'))
-  docker compose @composeArgs up -d --build
+  & docker compose @composeArgs up -d --build 2>&1 | Write-Host
 }
 if ($LASTEXITCODE -ne 0) { Warn "Le demarrage a echoue. Voir 'docker compose logs'."; Read-Host "Entree pour quitter"; exit 1 }
 Ok "Stack demarree."
 
 # -- 5. Telechargement du modele LLM --------------------------
-Step "Telechargement du modele $($plan.Model) (une seule fois)"
-docker compose @composeArgs exec -T ollama ollama pull $plan.Model
+Step "Telechargement du modele $($plan.Model) (une seule fois, peut etre long)"
+& docker compose @composeArgs exec -T ollama ollama pull $plan.Model 2>&1 | Write-Host
 if ($LASTEXITCODE -ne 0) { Warn "Le pull du modele a echoue - la narration LLM utilisera le fallback. Tu peux reessayer plus tard." }
 else { Ok "Modele pret." }
 
