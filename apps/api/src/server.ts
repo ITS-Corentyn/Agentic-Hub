@@ -3,6 +3,8 @@ import cors from '@fastify/cors';
 import { config } from './config.js';
 import { registerRoutes } from './routes.js';
 import { registerAuthRoutes } from './auth.js';
+import { registerInsightRoutes } from './insights.js';
+import { registerRemediationRoutes } from './remediation.js';
 import { startQueue } from './queue.js';
 
 // Fastify sérialise via JSON.stringify, qui ne gère pas les BigInt
@@ -41,6 +43,8 @@ async function main() {
 
   await registerAuthRoutes(app);
   await registerRoutes(app);
+  await registerInsightRoutes(app);
+  await registerRemediationRoutes(app);
 
   // Démarre la file pg-boss (workers audit local + synthèse).
   try {

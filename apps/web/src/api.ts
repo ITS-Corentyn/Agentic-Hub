@@ -45,6 +45,8 @@ export interface Finding {
   line: number | null;
   remediation: string;
   reference: string | null;
+  status?: 'open' | 'fixed' | 'ignored';
+  note?: string | null;
 }
 
 export interface Synthesis {
@@ -123,6 +125,37 @@ export const api = {
     const res = await fetch(`${BASE}/api/audits/${id}/report.md`);
     return res.text();
   },
+  // -- Tendances / diff / stats --
+  getTrend: (repoId: string) =>
+    http<{ auditId: string; date: string; score: number; findings: number; commit: string | null }[]>(
+      `/api/repositories/${repoId}/trend`,
+    ),
+  getDiff: (auditId: string) =>
+    http<{
+      previousAuditId: string | null;
+      deltaScore: number | null;
+      counts: { added: number; fixed: number; persistent: number };
+      added: { id: string; severity: Severity; dimension: Dimension; title: string; filePath: string | null }[];
+      fixed: { id: string; severity: Severity; dimension: Dimension; title: string; filePath: string | null }[];
+    }>(`/api/audits/${auditId}/diff`),
+  getOverview: () =>
+    http<{
+      repoCount: number;
+      auditedCount: number;
+      avgScore: number;
+      severityTotals: Record<Severity, number>;
+      worstRepos: { id: string; fullName: string; score: number }[];
+      topRules: { rule: string; count: number }[];
+    }>('/api/stats/overview'),
+
+  // -- Remediation --
+  patchFinding: (id: string, data: { status?: string; note?: string }) =>
+    http<Finding>(`/api/findings/${id}`, { method: 'PATCH', body: JSON.stringify(data) }),
+  createDependabotPr: (repoId: string) =>
+    http<{ url: string }>(`/api/repositories/${repoId}/dependabot-pr`, { method: 'POST', body: '{}' }),
+  createIssue: (findingId: string) =>
+    http<{ url: string }>(`/api/findings/${findingId}/issue`, { method: 'POST', body: '{}' }),
+
   getSettings: () => http<{ scoring: any }>('/api/settings'),
   saveSettings: (scoring: any) =>
     http<{ scoring: any }>('/api/settings', { method: 'PUT', body: JSON.stringify({ scoring }) }),

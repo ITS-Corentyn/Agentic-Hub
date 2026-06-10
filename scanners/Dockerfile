@@ -25,11 +25,21 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     && apt-get clean && rm -rf /var/lib/apt/lists/*
 
 # Outils Node globaux (qualité / architecture)
-RUN npm install -g \
-      eslint@9 \
-      jscpd@4 \
-      dependency-cruiser@16 \
-      madge@8
+RUN npm install -g jscpd@4 dependency-cruiser@16 madge@8
+
+# Toolbox ESLint autonome (TS/Vue)
+COPY scanners/eslint /opt/eslint-audit
+RUN cd /opt/eslint-audit && npm install --omit=dev --no-audit --no-fund
+ENV ESLINT_BIN=/opt/eslint-audit/node_modules/.bin/eslint \
+    ESLINT_CONFIG=/opt/eslint-audit/eslint.config.mjs
+
+# Pré-cache des rulesets Semgrep (scan fiable hors-ligne au runtime)
+ENV SEMGREP_CONFIGS=p/security-audit,p/secrets,p/owasp-top-ten
+RUN mkdir -p /tmp/warm && printf 'import os\nx = eval("1")\n' > /tmp/warm/x.py \
+    && semgrep scan --quiet --metrics=off --disable-version-check \
+         --config p/security-audit --config p/secrets --config p/owasp-top-ten /tmp/warm \
+       > /dev/null 2>&1 || true \
+    && rm -rf /tmp/warm
 
 WORKDIR /app
 

@@ -116,6 +116,7 @@ model Finding {
   reference   String?
   fingerprint String
   status      FindingStatus @default(open)
+  note        String? // motif de triage (ignore / faux-positif), saisi par l'utilisateur
   createdAt   DateTime      @default(now())
 
   @@index([auditId, severity])

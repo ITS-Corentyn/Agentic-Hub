@@ -3,11 +3,22 @@ import { computed, nextTick, onMounted, ref } from 'vue';
 import { useRouter } from 'vue-router';
 import gsap from 'gsap';
 import { api, type RepoSummary } from '../api';
+import { scoreColor } from '../lib/ui';
 import RepoCard from '../components/RepoCard.vue';
 
 const router = useRouter();
 const repos = ref<RepoSummary[]>([]);
+const overview = ref<Awaited<ReturnType<typeof api.getOverview>> | null>(null);
 const loading = ref(true);
+
+const SEVS = ['critical', 'high', 'medium', 'low', 'info'] as const;
+const SEV_DOT: Record<string, string> = {
+  critical: 'bg-red-500',
+  high: 'bg-orange-500',
+  medium: 'bg-yellow-400',
+  low: 'bg-sky-500',
+  info: 'bg-slate-500',
+};
 const syncing = ref(false);
 const busyId = ref<string | null>(null);
 const error = ref('');
@@ -30,6 +41,7 @@ async function load() {
   loading.value = true;
   try {
     repos.value = await api.listRepos();
+    overview.value = await api.getOverview().catch(() => null);
     await nextTick();
     if (grid.value) {
       gsap.from(grid.value.children, {
@@ -107,6 +119,43 @@ onMounted(load);
       <div class="card p-5">
         <p class="text-xs text-slate-400">Score moyen</p>
         <p class="text-3xl font-bold">{{ stats.avg }}<span class="text-base text-slate-500">/100</span></p>
+      </div>
+    </div>
+
+    <!-- Vue d'ensemble (organisation) -->
+    <div v-if="overview && overview.auditedCount > 0" class="mb-8 grid gap-4 lg:grid-cols-3">
+      <div class="card p-5">
+        <p class="mb-3 text-xs font-semibold text-slate-300">Problèmes par sévérité</p>
+        <div class="space-y-1.5">
+          <div v-for="s in SEVS" :key="s" class="flex items-center gap-2 text-sm">
+            <span :class="['h-2.5 w-2.5 rounded-full', SEV_DOT[s]]" />
+            <span class="w-16 capitalize text-slate-400">{{ s }}</span>
+            <span class="font-medium tabular-nums">{{ overview.severityTotals[s] ?? 0 }}</span>
+          </div>
+        </div>
+      </div>
+      <div class="card p-5">
+        <p class="mb-3 text-xs font-semibold text-slate-300">Repos à risque</p>
+        <ul class="space-y-1.5 text-sm">
+          <li
+            v-for="r in overview.worstRepos"
+            :key="r.id"
+            class="flex cursor-pointer items-center justify-between hover:text-white"
+            @click="router.push({ name: 'repo', params: { id: r.id } })"
+          >
+            <span class="truncate text-slate-300">{{ r.fullName }}</span>
+            <span class="ml-2 font-semibold" :style="{ color: scoreColor(r.score) }">{{ r.score }}</span>
+          </li>
+        </ul>
+      </div>
+      <div class="card p-5">
+        <p class="mb-3 text-xs font-semibold text-slate-300">Règles les plus fréquentes</p>
+        <ul class="space-y-1.5 text-sm">
+          <li v-for="t in overview.topRules.slice(0, 6)" :key="t.rule" class="flex items-center justify-between">
+            <code class="truncate text-xs text-slate-400">{{ t.rule }}</code>
+            <span class="ml-2 rounded bg-white/5 px-1.5 text-xs tabular-nums">{{ t.count }}</span>
+          </li>
+        </ul>
       </div>
     </div>
 

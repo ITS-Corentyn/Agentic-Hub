@@ -1,5 +1,6 @@
 import { Octokit } from '@octokit/rest';
 import { prisma } from '@agentic-hub/db';
+import { buildDependabotYaml } from '@agentic-hub/audit-engine';
 import { config } from './config.js';
 
 export interface RemoteRepo {
@@ -109,4 +110,117 @@ export async function getHeadSha(fullName: string, branch: string): Promise<stri
   } catch {
     return null;
   }
+}
+
+const DEPENDABOT_BRANCH = 'agentic-hub/add-dependabot';
+
+/**
+ * Ouvre une PR qui ajoute `.github/dependabot.yml` au repo (remediation 1-clic).
+ * Renvoie l'URL de la PR (existante ou nouvelle).
+ */
+export async function createDependabotPr(fullName: string, ecosystems: string[]): Promise<string> {
+  const gh = await client();
+  const [owner, repo] = fullName.split('/');
+  if (!owner || !repo) throw new Error('Repository invalide');
+
+  const { data: info } = await gh.repos.get({ owner, repo });
+  const base = info.default_branch;
+  const { data: baseRef } = await gh.git.getRef({ owner, repo, ref: `heads/${base}` });
+
+  // Cree la branche de travail (ignore l'erreur si elle existe deja).
+  try {
+    await gh.git.createRef({ owner, repo, ref: `refs/heads/${DEPENDABOT_BRANCH}`, sha: baseRef.object.sha });
+  } catch {
+    /* branche deja presente */
+  }
+
+  // SHA du fichier existant (pour un update) le cas echeant.
+  let sha: string | undefined;
+  try {
+    const { data } = await gh.repos.getContent({
+      owner,
+      repo,
+      path: '.github/dependabot.yml',
+      ref: DEPENDABOT_BRANCH,
+    });
+    if (!Array.isArray(data) && 'sha' in data) sha = data.sha;
+  } catch {
+    /* fichier absent */
+  }
+
+  const yaml = buildDependabotYaml(ecosystems);
+  await gh.repos.createOrUpdateFileContents({
+    owner,
+    repo,
+    path: '.github/dependabot.yml',
+    message: 'chore: ajout de la configuration Dependabot (Agentic-Hub)',
+    content: Buffer.from(yaml, 'utf8').toString('base64'),
+    branch: DEPENDABOT_BRANCH,
+    sha,
+  });
+
+  const { data: existing } = await gh.pulls.list({
+    owner,
+    repo,
+    head: `${owner}:${DEPENDABOT_BRANCH}`,
+    state: 'open',
+  });
+  if (existing.length) return existing[0]!.html_url;
+
+  const { data: pr } = await gh.pulls.create({
+    owner,
+    repo,
+    title: 'chore: activer Dependabot',
+    head: DEPENDABOT_BRANCH,
+    base,
+    body: 'Active les mises a jour automatiques des dependances.\n\n_Genere par Agentic-Hub._',
+  });
+  return pr.html_url;
+}
+
+/** Cree une issue GitHub a partir d'un finding. Renvoie l'URL de l'issue. */
+export async function createIssueFromFinding(
+  fullName: string,
+  finding: {
+    severity: string;
+    dimension: string;
+    tool: string;
+    ruleId: string;
+    title: string;
+    description: string;
+    filePath: string | null;
+    line: number | null;
+    remediation: string;
+    reference: string | null;
+  },
+): Promise<string> {
+  const gh = await client();
+  const [owner, repo] = fullName.split('/');
+  if (!owner || !repo) throw new Error('Repository invalide');
+
+  const loc = finding.filePath ? `\`${finding.filePath}${finding.line ? `:${finding.line}` : ''}\`` : '—';
+  const body = [
+    `**Severite** : ${finding.severity}`,
+    `**Dimension** : ${finding.dimension}`,
+    `**Outil** : ${finding.tool}${finding.ruleId ? ` (\`${finding.ruleId}\`)` : ''}`,
+    `**Emplacement** : ${loc}`,
+    '',
+    finding.description || '',
+    '',
+    '### Correctif recommande',
+    finding.remediation || '—',
+    finding.reference ? `\n**Reference** : ${finding.reference}` : '',
+    '',
+    '_Issue creee par Agentic-Hub._',
+  ]
+    .filter((l) => l !== '')
+    .join('\n');
+
+  const { data } = await gh.issues.create({
+    owner,
+    repo,
+    title: `[${finding.severity}] ${finding.title}`.slice(0, 250),
+    body,
+  });
+  return data.html_url;
 }

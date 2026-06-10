@@ -5,8 +5,17 @@ import { SEVERITY_LABELS } from '../lib/ui';
 import SeverityBadge from './SeverityBadge.vue';
 
 const props = defineProps<{ findings: Finding[] }>();
+const emit = defineEmits<{ triage: [id: string, status: string]; issue: [id: string] }>();
 const expanded = ref<Set<string>>(new Set());
 const sevFilter = ref<Severity | 'all'>('all');
+const busyId = ref<string | null>(null);
+
+async function onIssue(id: string) {
+  busyId.value = id;
+  emit('issue', id);
+  // le parent remet busy a null via re-render ; on libere par securite
+  setTimeout(() => (busyId.value === id ? (busyId.value = null) : null), 4000);
+}
 
 const ORDER: Severity[] = ['critical', 'high', 'medium', 'low', 'info'];
 
@@ -48,8 +57,13 @@ function toggle(id: string) {
 
     <ul class="space-y-2">
       <li v-for="f in filtered" :key="f.id" class="card overflow-hidden">
-        <button class="flex w-full items-center gap-3 p-3 text-left" @click="toggle(f.id)">
+        <button
+          class="flex w-full items-center gap-3 p-3 text-left"
+          :class="f.status === 'ignored' ? 'opacity-50' : ''"
+          @click="toggle(f.id)"
+        >
           <SeverityBadge :severity="f.severity" />
+          <span v-if="f.status === 'ignored'" class="rounded bg-white/10 px-1.5 py-0.5 text-[10px] text-slate-300">ignoré</span>
           <span class="min-w-0 flex-1 truncate text-sm">{{ f.title }}</span>
           <code v-if="f.filePath" class="hidden max-w-[40%] truncate text-[11px] text-slate-400 sm:block">
             {{ f.filePath }}{{ f.line ? `:${f.line}` : '' }}
@@ -67,6 +81,30 @@ function toggle(id: string) {
           <a v-if="f.reference" :href="f.reference" target="_blank" class="mt-2 inline-block text-xs text-brand-400 hover:underline">
             Référence ↗
           </a>
+
+          <div class="mt-3 flex flex-wrap gap-2 border-t border-white/5 pt-3">
+            <button
+              v-if="f.status !== 'ignored'"
+              class="rounded-md border border-white/10 px-2.5 py-1 text-xs text-slate-300 hover:bg-white/5"
+              @click="emit('triage', f.id, 'ignored')"
+            >
+              Ignorer (faux positif)
+            </button>
+            <button
+              v-else
+              class="rounded-md border border-white/10 px-2.5 py-1 text-xs text-slate-300 hover:bg-white/5"
+              @click="emit('triage', f.id, 'open')"
+            >
+              Rouvrir
+            </button>
+            <button
+              class="rounded-md border border-brand-500/40 px-2.5 py-1 text-xs text-brand-300 hover:bg-brand-500/10 disabled:opacity-50"
+              :disabled="busyId === f.id"
+              @click="onIssue(f.id)"
+            >
+              {{ busyId === f.id ? '...' : 'Créer une issue GitHub' }}
+            </button>
+          </div>
         </div>
       </li>
     </ul>

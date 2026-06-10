@@ -38,17 +38,34 @@ function tmpFile(ext = 'json'): string {
 type Runner = (root: string) => ScannerOutput;
 
 // ── Semgrep ───────────────────────────────────────────────────
+// Rulesets cibles (pre-caches au build de l'image pour fonctionner offline).
+// Surchargeables via SEMGREP_CONFIGS (liste separee par des virgules).
+const SEMGREP_CONFIGS = (
+  process.env.SEMGREP_CONFIGS ?? 'p/security-audit,p/secrets,p/owasp-top-ten'
+)
+  .split(',')
+  .map((s) => s.trim())
+  .filter(Boolean);
+
 const runSemgrep: Runner = (root) => {
   if (!hasTool('semgrep')) return skipped('semgrep');
+  const configArgs = SEMGREP_CONFIGS.flatMap((c) => ['--config', c]);
   const res = exec(
     'semgrep',
-    ['scan', '--config', 'auto', '--json', '--quiet', '--metrics=off', '--timeout=0', '--error=false', '.'],
+    ['scan', '--json', '--quiet', '--metrics=off', '--timeout=0', '--disable-version-check', ...configArgs, '.'],
     root,
     900_000,
   );
-  const raw = res.stdout || res.stderr;
   const parsed = tryParseJson(res.stdout);
-  if (!parsed) return { tool: 'semgrep', ran: false, raw, findings: [], note: 'Sortie illisible (réseau requis pour --config auto ?)' };
+  if (!parsed) {
+    return {
+      tool: 'semgrep',
+      ran: false,
+      raw: res.stdout || res.stderr,
+      findings: [],
+      note: 'Sortie illisible (rulesets non disponibles ?)',
+    };
+  }
   return { tool: 'semgrep', ran: true, raw: res.stdout, findings: normalizeSemgrep(parsed, root) };
 };
 
@@ -123,15 +140,24 @@ export default [
 `;
 
 const runEslint: Runner = (root) => {
-  if (!hasTool('eslint')) return skipped('eslint');
-  const cfg = tmpFile('mjs');
-  writeFileSync(cfg, ESLINT_CONFIG);
+  // Toolbox ESLint externe (TS/Vue) fournie par l'image via ESLINT_BIN/ESLINT_CONFIG ;
+  // sinon fallback sur une config embarquee (JS uniquement).
+  const bin = process.env.ESLINT_BIN ?? 'eslint';
+  const binName = bin === 'eslint' ? 'eslint' : bin;
+  if (bin === 'eslint' && !hasTool('eslint')) return skipped('eslint');
+
+  let cfg = process.env.ESLINT_CONFIG;
+  if (!cfg) {
+    cfg = tmpFile('mjs');
+    writeFileSync(cfg, ESLINT_CONFIG);
+  }
   const res = exec(
-    'eslint',
+    binName,
     ['--no-config-lookup', '--config', cfg, '--format', 'json', '--no-error-on-unmatched-pattern', '.'],
     root,
     300_000,
   );
+  if (res.notFound) return skipped('eslint');
   const parsed = tryParseJson(res.stdout);
   if (!parsed) return { tool: 'eslint', ran: false, raw: res.stderr, findings: [] };
   return { tool: 'eslint', ran: true, raw: res.stdout, findings: normalizeEslint(parsed, root) };
