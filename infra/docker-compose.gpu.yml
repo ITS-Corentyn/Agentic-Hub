@@ -1,0 +1,13 @@
+# Override activé automatiquement par l'installeur quand un GPU NVIDIA est détecté.
+# Donne au conteneur Ollama l'accès au GPU (inférence accélérée).
+# Nécessite : pilote NVIDIA + NVIDIA Container Toolkit (Linux) ou Docker Desktop
+# récent avec support GPU (Windows/WSL2).
+services:
+  ollama:
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]

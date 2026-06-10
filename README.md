@@ -47,17 +47,27 @@ scanners/         Image Docker "toolbox" + run-scanners.sh
   daily-audit.yml Auto-audit quotidien (open-source, artefact) — sans Claude
 ```
 
-## 🚀 Démarrage rapide (Docker)
+## 🚀 Installation en un clic (recommandé, sans Node/npm)
+
+Seul **Docker Desktop** est requis. L'installeur détecte ton matériel (GPU/VRAM ou RAM),
+choisit le modèle LLM adapté, build, démarre et télécharge tout le nécessaire.
+
+- **Windows** : double-clique **`Install-Windows.cmd`**
+- **macOS** : double-clique **`Install-macOS.command`**
+
+Détails, choix du modèle et dépannage → **[INSTALL.md](INSTALL.md)**.
+
+## 🚀 Démarrage manuel (alternative)
 
 ```bash
-cp .env.example .env        # renseigner GITHUB_TOKEN / GITHUB_OWNER si besoin
-docker compose -f infra/docker-compose.yml up -d --build
+cp .env.example .env        # renseigner les clés GitHub OAuth (ou GITHUB_TOKEN)
+docker compose --env-file .env -f infra/docker-compose.yml up -d --build
 # Récupérer le modèle Ollama (1re fois) :
-docker compose -f infra/docker-compose.yml exec ollama ollama pull qwen2.5-coder:7b
+docker compose --env-file .env -f infra/docker-compose.yml exec ollama ollama pull qwen2.5-coder:7b
 ```
 
-- Web : http://localhost:8080
-- API : http://localhost:3000 (`/api/health`)
+- Web : http://localhost:8080 (ou `WEB_PORT`)
+- API : http://localhost:3000 (ou `API_HOST_PORT`) — `/api/health`
 
 En **mode local** (sans `AUDIT_WORKFLOW_REPO`), l'API clone et scanne directement les repos
 (l'image API embarque tous les scanners).

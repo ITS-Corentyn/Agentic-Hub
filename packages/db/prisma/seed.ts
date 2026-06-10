@@ -24,22 +24,9 @@ async function main() {
     },
   });
 
-  // Repo de démonstration (public) pour valider le flux bout-en-bout.
-  await prisma.repository.upsert({
-    where: { fullName: 'OWASP/NodeGoat' },
-    update: {},
-    create: {
-      fullName: 'OWASP/NodeGoat',
-      name: 'NodeGoat',
-      owner: 'OWASP',
-      url: 'https://github.com/OWASP/NodeGoat',
-      defaultBranch: 'master',
-      language: 'JavaScript',
-      description: 'Application volontairement vulnérable — idéale pour tester les scanners.',
-    },
-  });
-
-  console.log('✔ Seed terminé');
+  // Aucun repository de démonstration n'est inséré : seuls les repos du compte
+  // GitHub connecté (via « Synchroniser GitHub ») apparaissent.
+  console.log('✔ Seed terminé (paramètres uniquement, aucune donnée de test)');
 }
 
 main()

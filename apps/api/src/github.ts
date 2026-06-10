@@ -63,11 +63,13 @@ export async function listRepositories(owner?: string, ownerType?: 'user' | 'org
     return repos.map((r) => mapRepo(r, owner));
   }
 
-  // Compte connecté : on récupère tout ce à quoi l'utilisateur a accès (user + orgs).
+  // Compte connecté : uniquement les repos LIÉS au compte —
+  // ceux qu'il possède + ceux de ses organisations (pas les repos externes
+  // où il n'est que simple collaborateur).
   if (connected) {
     const repos = await gh.paginate(gh.repos.listForAuthenticatedUser, {
       per_page: 100,
-      affiliation: 'owner,collaborator,organization_member',
+      affiliation: 'owner,organization_member',
       visibility: 'all',
       sort: 'updated',
     });

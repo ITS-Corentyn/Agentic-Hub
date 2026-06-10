@@ -96,7 +96,20 @@ export async function registerRoutes(app: FastifyInstance) {
         });
         if (res.createdAt.getTime() === res.updatedAt.getTime()) created++;
       }
-      return { synced: repos.length, created };
+
+      // Synchro autoritative : on n'élague que lors d'une synchro globale du
+      // compte connecté (sans owner ciblé) → ne conserver QUE les repos liés
+      // au compte. Les repos disparus (quittés / non possédés) sont retirés.
+      let pruned = 0;
+      if (!body.owner) {
+        const keep = repos.map((r) => r.fullName);
+        const removed = await prisma.repository.deleteMany({
+          where: { fullName: { notIn: keep.length ? keep : ['__none__'] } },
+        });
+        pruned = removed.count;
+      }
+
+      return { synced: repos.length, created, pruned };
     } catch (err) {
       return reply.code(502).send({ error: `Échec de synchronisation : ${(err as Error).message}` });
     }
