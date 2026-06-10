@@ -120,6 +120,89 @@ function Resolve-Port($path, $key, $cands) {
   return (Pick-Port $cands)
 }
 
+# Pull d'un modele Ollama avec une barre de progression sur UNE seule ligne
+# (via l'API HTTP en streaming). Renvoie $true si OK, $false pour fallback CLI.
+function Invoke-OllamaPull($model, $port) {
+  $uri = "http://localhost:$port/api/pull"
+  $body = "{`"model`":`"$model`",`"stream`":true}"
+  try {
+    $req = [System.Net.HttpWebRequest]::Create($uri)
+    $req.Method = 'POST'
+    $req.ContentType = 'application/json'
+    $req.Timeout = 60000
+    $req.ReadWriteTimeout = [int]::MaxValue
+    $bytes = [System.Text.Encoding]::UTF8.GetBytes($body)
+    $req.ContentLength = $bytes.Length
+    $rs = $req.GetRequestStream(); $rs.Write($bytes, 0, $bytes.Length); $rs.Close()
+    $resp = $req.GetResponse()
+    $reader = New-Object System.IO.StreamReader($resp.GetResponseStream())
+    $last = ''
+    while (-not $reader.EndOfStream) {
+      $line = $reader.ReadLine()
+      if ([string]::IsNullOrWhiteSpace($line)) { continue }
+      try { $o = $line | ConvertFrom-Json } catch { continue }
+      if ($o.error) { Write-Host ''; Warn "Ollama: $($o.error)"; return $false }
+      $status = [string]$o.status
+      if ($o.total -and [double]$o.total -gt 0) {
+        $pct = [int][math]::Floor(([double]$o.completed / [double]$o.total) * 100)
+        $fill = [int][math]::Floor($pct / 2)
+        $bar = ('#' * $fill) + ('.' * (50 - $fill))
+        $go = "{0:N2}/{1:N2} Go" -f ([double]$o.completed / 1GB), ([double]$o.total / 1GB)
+        Write-Host ("`r  [{0}] {1,3}%  {2}  {3}        " -f $bar, $pct, $go, $status) -NoNewline -ForegroundColor Cyan
+      } elseif ($status -ne $last) {
+        Write-Host ("`r  {0}{1}" -f $status, (' ' * 60)) -NoNewline -ForegroundColor Cyan
+      }
+      $last = $status
+    }
+    $reader.Close(); $resp.Close()
+    Write-Host ''
+    return $true
+  } catch {
+    Write-Host ''
+    return $false
+  }
+}
+
+# Assistant pas-a-pas pour configurer l'OAuth GitHub (depuis l'installeur).
+function Invoke-GithubOAuthSetup($envPath, $apiPort, $webPort, $composeArgs) {
+  Step "Connexion GitHub (recommande - pour auditer tes repos)"
+  if (Get-EnvVar $envPath 'GITHUB_OAUTH_CLIENT_ID') {
+    Ok "OAuth GitHub deja configure. Dans l'appli : 'Se connecter' puis 'Synchroniser GitHub'."
+    return
+  }
+  $cb = "http://localhost:$apiPort/api/auth/github/callback"
+  Info "Cree une 'OAuth App' GitHub (2 min) pour recuperer TES repos et ceux de tes organisations :"
+  Write-Host ''
+  Write-Host "    1) Ouvre : https://github.com/settings/developers" -ForegroundColor White
+  Write-Host "       (Settings -> Developer settings -> OAuth Apps)" -ForegroundColor DarkGray
+  Write-Host "    2) Clique 'New OAuth App'" -ForegroundColor White
+  Write-Host "    3) Remplis les champs :" -ForegroundColor White
+  Write-Host "         Application name            : Agentic-Hub" -ForegroundColor White
+  Write-Host "         Homepage URL                : http://localhost:$webPort" -ForegroundColor White
+  Write-Host "         Authorization callback URL  : $cb" -ForegroundColor Yellow
+  Write-Host "    4) Clique 'Register application'" -ForegroundColor White
+  Write-Host "    5) Copie le 'Client ID' affiche" -ForegroundColor White
+  Write-Host "    6) Clique 'Generate a new client secret' et copie la valeur" -ForegroundColor White
+  Write-Host ''
+  $open = Read-Host "  Ouvrir la page GitHub maintenant ? (O/n)"
+  if ($open -ne 'n' -and $open -ne 'N') { Start-Process "https://github.com/settings/developers" | Out-Null }
+
+  $cid = Read-Host "  Colle ton Client ID (ou Entree pour configurer plus tard)"
+  if ([string]::IsNullOrWhiteSpace($cid)) {
+    Warn "Etape ignoree. Tu pourras configurer OAuth plus tard (voir README), puis relancer l'installeur."
+    return
+  }
+  $sec = Read-Host "  Colle ton Client Secret"
+  if ([string]::IsNullOrWhiteSpace($sec)) { Warn "Secret vide - etape ignoree."; return }
+
+  Set-EnvVar $envPath 'GITHUB_OAUTH_CLIENT_ID' $cid.Trim()
+  Set-EnvVar $envPath 'GITHUB_OAUTH_CLIENT_SECRET' $sec.Trim()
+  Set-EnvVar $envPath 'GITHUB_OAUTH_CALLBACK_URL' $cb
+  Info "Application de la configuration (redemarrage de l'API)..."
+  & docker compose @composeArgs up -d api 2>&1 | Write-Host
+  Ok "OAuth configure ! Dans l'appli : clique 'Se connecter' puis 'Synchroniser GitHub'."
+}
+
 Step "Configuration (.env)"
 $envPath = Join-Path $RepoRoot '.env'
 if (-not (Test-Path $envPath)) {
@@ -152,16 +235,23 @@ if ($LASTEXITCODE -ne 0 -and $plan.UseGpu) {
 if ($LASTEXITCODE -ne 0) { Warn "Le demarrage a echoue. Voir 'docker compose logs'."; Read-Host "Entree pour quitter"; exit 1 }
 Ok "Stack demarree."
 
-# -- 5. Telechargement du modele LLM --------------------------
-Step "Telechargement du modele $($plan.Model) (une seule fois, peut etre long)"
-& docker compose @composeArgs exec -T ollama ollama pull $plan.Model 2>&1 | Write-Host
-if ($LASTEXITCODE -ne 0) { Warn "Le pull du modele a echoue - la narration LLM utilisera le fallback. Tu peux reessayer plus tard." }
-else { Ok "Modele pret." }
+# -- 5. Configuration GitHub OAuth (guide pas a pas) ----------
+Invoke-GithubOAuthSetup $envPath $apiPort $webPort $composeArgs
 
-# -- 6. Ouverture du navigateur -------------------------------
+# -- 6. Telechargement du modele LLM (barre de progression) ---
+Step "Telechargement du modele $($plan.Model) (une seule fois, peut etre long)"
+if (Invoke-OllamaPull $plan.Model 11434) {
+  Ok "Modele pret."
+} else {
+  Warn "Telechargement standard en cours (barre indisponible)..."
+  & docker compose @composeArgs exec -T ollama ollama pull $plan.Model 2>&1 | Write-Host
+  if ($LASTEXITCODE -ne 0) { Warn "Le pull du modele a echoue - la narration LLM utilisera le fallback." }
+  else { Ok "Modele pret." }
+}
+
+# -- 7. Ouverture du navigateur -------------------------------
 Step "Termine !"
 Ok "Interface : http://localhost:$webPort"
 Ok "API       : http://localhost:$apiPort/api/health"
-Info "Pour connecter ton compte GitHub : renseigne GITHUB_OAUTH_CLIENT_ID/SECRET dans .env (voir README), relance, puis clique sur Se connecter."
 Start-Process "http://localhost:$webPort"
 Read-Host "Appuie sur Entree pour fermer cette fenetre"

@@ -131,17 +131,84 @@ if ! "${COMPOSE[@]}" up -d --build; then
 fi
 green "Stack démarrée."
 
-# ── 5. Téléchargement du modèle ──────────────────────────────
+# Pull Ollama avec barre de progression sur UNE seule ligne (via l'API HTTP).
+ollama_pull_pretty() {
+  local model="$1" port="${2:-11434}"
+  curl -s -o /dev/null --max-time 5 "http://localhost:${port}/api/version" || return 1
+  curl -s -N -X POST "http://localhost:${port}/api/pull" \
+       -H 'Content-Type: application/json' \
+       -d "{\"model\":\"${model}\",\"stream\":true}" \
+  | while IFS= read -r line; do
+      [ -z "$line" ] && continue
+      total=$(printf '%s' "$line" | grep -o '"total":[0-9]\+' | grep -o '[0-9]\+' | head -1)
+      completed=$(printf '%s' "$line" | grep -o '"completed":[0-9]\+' | grep -o '[0-9]\+' | head -1)
+      status=$(printf '%s' "$line" | sed -n 's/.*"status":"\([^"]*\)".*/\1/p')
+      if [ -n "$total" ] && [ "$total" -gt 0 ] 2>/dev/null; then
+        [ -z "$completed" ] && completed=0
+        pct=$(( completed * 100 / total )); fill=$(( pct / 2 ))
+        bar="$(printf '%*s' "$fill" '' | tr ' ' '#')$(printf '%*s' $((50 - fill)) '' | tr ' ' '.')"
+        go="$(awk -v c="$completed" -v t="$total" 'BEGIN{printf "%.2f/%.2f Go", c/1073741824, t/1073741824}')"
+        printf '\r  [%s] %3d%%  %s  %s        ' "$bar" "$pct" "$go" "$status"
+      else
+        printf '\r  %-70s' "$status"
+      fi
+    done
+  printf '\n'
+}
+
+# Assistant pas-à-pas pour configurer l'OAuth GitHub depuis l'installeur.
+github_oauth_setup() {
+  step "Connexion GitHub (recommandé — pour auditer tes repos)"
+  if grep -qE '^GITHUB_OAUTH_CLIENT_ID=.+' "$ENV_FILE"; then
+    green "OAuth GitHub déjà configuré. Dans l'appli : « Se connecter » puis « Synchroniser GitHub »."
+    return
+  fi
+  local cb="http://localhost:${API_PORT}/api/auth/github/callback"
+  cyan "Crée une « OAuth App » GitHub (2 min) pour récupérer TES repos et ceux de tes organisations :"
+  echo
+  echo "    1) Ouvre : https://github.com/settings/developers"
+  echo "       (Settings -> Developer settings -> OAuth Apps)"
+  echo "    2) Clique « New OAuth App »"
+  echo "    3) Remplis :"
+  echo "         Application name            : Agentic-Hub"
+  echo "         Homepage URL                : http://localhost:${WEB_PORT}"
+  echo "         Authorization callback URL  : ${cb}"
+  echo "    4) Clique « Register application »"
+  echo "    5) Copie le « Client ID »"
+  echo "    6) Clique « Generate a new client secret » et copie la valeur"
+  echo
+  read -r -p "  Ouvrir la page GitHub maintenant ? (O/n) " op
+  if [ "$op" != "n" ] && [ "$op" != "N" ]; then open_url "https://github.com/settings/developers"; fi
+  read -r -p "  Colle ton Client ID (ou Entrée pour configurer plus tard) : " cid
+  [ -z "$cid" ] && { yellow "Étape ignorée — voir README pour configurer plus tard."; return; }
+  read -r -p "  Colle ton Client Secret : " sec
+  [ -z "$sec" ] && { yellow "Secret vide — étape ignorée."; return; }
+  set_env GITHUB_OAUTH_CLIENT_ID "$cid"
+  set_env GITHUB_OAUTH_CLIENT_SECRET "$sec"
+  set_env GITHUB_OAUTH_CALLBACK_URL "$cb"
+  cyan "Application de la configuration (redémarrage de l'API)..."
+  "${COMPOSE[@]}" up -d api || true
+  green "OAuth configuré ! Dans l'appli : « Se connecter » puis « Synchroniser GitHub »."
+}
+
+# ── 5. Configuration GitHub OAuth (guide pas à pas) ──────────
+github_oauth_setup
+
+# ── 6. Téléchargement du modèle (barre de progression) ───────
 step "Téléchargement du modèle ${MODEL} (une seule fois)"
-if ! "${COMPOSE[@]}" exec -T ollama ollama pull "$MODEL"; then
-  yellow "Le pull du modèle a échoué — la narration LLM utilisera le fallback. Réessaie plus tard."
-else
+if ollama_pull_pretty "$MODEL" 11434; then
   green "Modèle prêt."
+else
+  yellow "Téléchargement standard (barre indisponible)..."
+  if ! "${COMPOSE[@]}" exec -T ollama ollama pull "$MODEL"; then
+    yellow "Le pull du modèle a échoué — la narration LLM utilisera le fallback."
+  else
+    green "Modèle prêt."
+  fi
 fi
 
-# ── 6. Fin ───────────────────────────────────────────────────
+# ── 7. Fin ───────────────────────────────────────────────────
 step "Terminé !"
 green "Interface : http://localhost:${WEB_PORT}"
 green "API       : http://localhost:${API_PORT}/api/health"
-cyan "Connexion GitHub : renseigne GITHUB_OAUTH_CLIENT_ID/SECRET dans .env (voir README), relance, puis « Se connecter »."
 open_url "http://localhost:${WEB_PORT}"
