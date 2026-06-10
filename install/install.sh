@@ -195,6 +195,50 @@ github_oauth_setup() {
   green "OAuth configuré ! Dans l'appli : « Se connecter » puis « Synchroniser GitHub »."
 }
 
+# Active la mise a jour automatique (macOS: LaunchAgent ; Linux: cron suggere).
+enable_auto_update() {
+  step "Mises à jour automatiques"
+  if [ "$OS" != "Darwin" ]; then
+    cyan "Linux — pour automatiser, ajoute une tâche cron :"
+    echo "    (crontab -l 2>/dev/null; echo \"0 */2 * * * bash '$ROOT/install/update.sh' '$ROOT' --auto\") | crontab -"
+    return
+  fi
+  local plist="$HOME/Library/LaunchAgents/com.agentic-hub.autoupdate.plist"
+  read -r -p "  Activer la mise à jour automatique (au démarrage + toutes les 2h) ? (O/n) " ans
+  if [ "$ans" = "n" ] || [ "$ans" = "N" ]; then
+    cyan "Désactivée. Utilise Update-macOS.command pour mettre à jour."
+    return
+  fi
+  mkdir -p "$HOME/Library/LaunchAgents" "$ROOT/logs"
+  cat > "$plist" <<PLIST
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>Label</key><string>com.agentic-hub.autoupdate</string>
+  <key>ProgramArguments</key>
+  <array>
+    <string>/bin/bash</string>
+    <string>${ROOT}/install/update.sh</string>
+    <string>${ROOT}</string>
+    <string>--auto</string>
+  </array>
+  <key>RunAtLoad</key><true/>
+  <key>StartInterval</key><integer>7200</integer>
+  <key>StandardOutPath</key><string>${ROOT}/logs/auto-update.out</string>
+  <key>StandardErrorPath</key><string>${ROOT}/logs/auto-update.err</string>
+</dict>
+</plist>
+PLIST
+  launchctl unload "$plist" 2>/dev/null || true
+  if launchctl load -w "$plist" 2>/dev/null; then
+    green "Mises à jour automatiques activées (au démarrage + toutes les 2h)."
+    cyan "Pour désactiver : launchctl unload '$plist' && rm '$plist'"
+  else
+    yellow "Impossible de charger le LaunchAgent — utilise Update-macOS.command."
+  fi
+}
+
 # ── 5. Configuration GitHub OAuth (guide pas à pas) ──────────
 github_oauth_setup
 
@@ -210,6 +254,9 @@ else
     green "Modèle prêt."
   fi
 fi
+
+# ── 6.5 Mises à jour automatiques ────────────────────────────
+enable_auto_update
 
 # ── 7. Fin ───────────────────────────────────────────────────
 step "Terminé !"

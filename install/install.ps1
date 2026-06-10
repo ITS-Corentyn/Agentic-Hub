@@ -203,6 +203,32 @@ function Invoke-GithubOAuthSetup($envPath, $apiPort, $webPort, $composeArgs) {
   Ok "OAuth configure ! Dans l'appli : clique 'Se connecter' puis 'Synchroniser GitHub'."
 }
 
+# Active la mise a jour automatique via une tache planifiee schtasks (toutes les
+# 2h, en arriere-plan). schtasks /SC HOURLY ne necessite PAS de droits admin.
+function Enable-AutoUpdate($repoRoot) {
+  Step "Mises a jour automatiques"
+  $taskName = 'AgenticHub-AutoUpdate'
+  schtasks /Query /TN $taskName *> $null
+  if ($LASTEXITCODE -eq 0) {
+    Ok "Deja activees (verification toutes les 2h, en arriere-plan)."
+    return
+  }
+  $ans = Read-Host "  Activer la mise a jour automatique (toutes les 2h, en arriere-plan) ? (O/n)"
+  if ($ans -eq 'n' -or $ans -eq 'N') {
+    Info "Desactivee. Tu pourras mettre a jour avec Update-Windows.cmd."
+    return
+  }
+  $wrapper = Join-Path $repoRoot 'install\auto-update-run.cmd'
+  $out = schtasks /Create /TN $taskName /TR "`"$wrapper`"" /SC HOURLY /MO 2 /F 2>&1
+  if ($LASTEXITCODE -eq 0) {
+    Ok "Mises a jour automatiques activees (verification toutes les 2h)."
+    Info "Pour desactiver : schtasks /Delete /TN $taskName /F"
+  } else {
+    Warn ("Impossible de creer la tache planifiee : " + ($out -join ' '))
+    Info "Tu pourras mettre a jour manuellement avec Update-Windows.cmd."
+  }
+}
+
 Step "Configuration (.env)"
 $envPath = Join-Path $RepoRoot '.env'
 if (-not (Test-Path $envPath)) {
@@ -252,6 +278,9 @@ if (Invoke-OllamaPull $plan.Model $ollamaPort) {
   if ($LASTEXITCODE -ne 0) { Warn "Le pull du modele a echoue - la narration LLM utilisera le fallback." }
   else { Ok "Modele pret." }
 }
+
+# -- 6.5 Mises a jour automatiques ----------------------------
+Enable-AutoUpdate $RepoRoot
 
 # -- 7. Ouverture du navigateur -------------------------------
 Step "Termine !"

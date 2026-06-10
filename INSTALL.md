@@ -48,9 +48,24 @@ Arrêter : double-clique **`Stop-macOS.command`**.
 > Pour accélérer, tu peux installer Ollama nativement (`brew install ollama`) et mettre
 > `OLLAMA_URL=http://host.docker.internal:11434` dans `.env`.
 
-## 🔄 Mettre à jour (pas besoin de réinstaller)
+## 🔄 Mises à jour
 
-Pour récupérer les dernières évolutions :
+### Automatiques (recommandé)
+À l'installation, l'installeur **propose d'activer les mises à jour automatiques**
+(répondre « O »). L'app vérifie alors le dépôt **toutes les 2 h en arrière-plan** et
+s'aligne toute seule dès qu'une nouvelle version est publiée — sans rien faire.
+
+- **Windows** : tâche planifiée `schtasks` (sans droits admin).
+  Désactiver : `schtasks /Delete /TN AgenticHub-AutoUpdate /F`
+- **macOS** : `LaunchAgent` (`~/Library/LaunchAgents/com.agentic-hub.autoupdate.plist`).
+  Désactiver : `launchctl unload <plist> && rm <plist>`
+- **Linux** : ligne `cron` suggérée par l'installeur.
+
+Journal : `logs/auto-update.log`. La vérification ne fait rien si rien n'a changé,
+et ne reconstruit que si la logique applicative a évolué.
+
+### Manuelles (à la demande)
+Pour forcer tout de suite :
 
 - **Windows** : double-clique **`Update-Windows.cmd`**
 - **macOS** : double-clique **`Update-macOS.command`**
