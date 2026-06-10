@@ -48,6 +48,23 @@ Arrêter : double-clique **`Stop-macOS.command`**.
 > Pour accélérer, tu peux installer Ollama nativement (`brew install ollama`) et mettre
 > `OLLAMA_URL=http://host.docker.internal:11434` dans `.env`.
 
+## 🔄 Mettre à jour (pas besoin de réinstaller)
+
+Pour récupérer les dernières évolutions :
+
+- **Windows** : double-clique **`Update-Windows.cmd`**
+- **macOS** : double-clique **`Update-macOS.command`**
+
+L'updater :
+1. vérifie le dépôt (**ne fait rien si rien n'a changé**) ;
+2. récupère les nouveautés (`git pull`) si une version plus récente existe ;
+3. **ne reconstruit les images que si la logique applicative a changé**
+   (un changement de doc/config → simple redémarrage, pas de build) ;
+4. applique automatiquement les migrations de base au redémarrage.
+
+> Tes données (volume Postgres), ton `.env` et tes ports sont **préservés**.
+> À noter : re-cliquer sur `Install-*` met aussi à jour, mais `Update-*` est plus rapide.
+
 ## Choix automatique du modèle (cohérence matérielle)
 
 | Matériel détecté | Modèle choisi |

@@ -1,0 +1,93 @@
+<#
+  Agentic-Hub - Mise a jour (Windows). ASCII uniquement (PowerShell 5.1).
+  - git fetch : ne fait rien si rien n'a change ;
+  - git pull si en retard ;
+  - reconstruit les images SEULEMENT si la logique applicative a change
+    (apps/ packages/ scanners/ infra/ Dockerfile/ lockfile) ; sinon redemarrage leger ;
+  - applique les migrations au demarrage de l'API.
+#>
+param([string]$RepoRoot)
+$ErrorActionPreference = 'Continue'
+if (-not $RepoRoot) { $RepoRoot = (Resolve-Path "$PSScriptRoot\..").Path }
+
+function Info($m) { Write-Host "  $m" -ForegroundColor Cyan }
+function Ok($m)   { Write-Host "  $m" -ForegroundColor Green }
+function Warn($m) { Write-Host "  $m" -ForegroundColor Yellow }
+function Step($m) { Write-Host "`n==> $m" -ForegroundColor Magenta }
+
+# -- Pre-requis --
+if (-not (Get-Command git -ErrorAction SilentlyContinue)) {
+  Warn "Git introuvable. Relance Install-Windows.cmd."; Read-Host "Entree pour quitter"; exit 1
+}
+function Test-DockerDaemon { & docker info > $null 2>&1; return ($LASTEXITCODE -eq 0) }
+function Start-DockerDesktop {
+  $c = @(
+    (Join-Path $env:ProgramFiles 'Docker\Docker\Docker Desktop.exe'),
+    (Join-Path $env:LOCALAPPDATA 'Docker\Docker Desktop.exe')
+  ) | Where-Object { $_ -and (Test-Path $_) } | Select-Object -First 1
+  if ($c) { Start-Process $c | Out-Null; return $true }
+  return $false
+}
+if (-not (Test-DockerDaemon)) {
+  Warn "Docker n'est pas demarre - tentative de demarrage..."
+  Start-DockerDesktop | Out-Null
+  $deadline = (Get-Date).AddSeconds(180)
+  while (((Get-Date) -lt $deadline) -and (-not (Test-DockerDaemon))) { Start-Sleep -Seconds 3 }
+  if (-not (Test-DockerDaemon)) { Warn "Docker indisponible. Ouvre Docker Desktop puis relance."; Read-Host "Entree"; exit 1 }
+}
+
+# -- Y a-t-il une mise a jour ? --
+Step "Verification des mises a jour"
+& git -C $RepoRoot fetch --quiet origin 2>&1 | Out-Null
+$old = (& git -C $RepoRoot rev-parse HEAD 2>$null).Trim()
+$remote = (& git -C $RepoRoot rev-parse '@{u}' 2>$null)
+if (-not $remote) {
+  # Pas d'upstream connu : tenter origin/<branche courante>
+  $branch = (& git -C $RepoRoot rev-parse --abbrev-ref HEAD 2>$null).Trim()
+  $remote = (& git -C $RepoRoot rev-parse "origin/$branch" 2>$null)
+}
+$remote = "$remote".Trim()
+if (-not $remote -or $old -eq $remote) {
+  Ok "Tu es deja a jour (aucun changement sur le depot)."
+  Read-Host "Appuie sur Entree pour fermer"; exit 0
+}
+
+$behind = (& git -C $RepoRoot rev-list "$old..$remote" --count 2>$null)
+$behind = "$behind".Trim()
+Step "Mise a jour disponible ($behind commit(s)) - application..."
+& git -C $RepoRoot pull --ff-only 2>&1 | Write-Host
+$new = (& git -C $RepoRoot rev-parse HEAD 2>$null).Trim()
+
+# -- Faut-il reconstruire ? (uniquement si la logique applicative a change) --
+$changed = & git -C $RepoRoot diff --name-only "$old" "$new" 2>$null
+$needBuild = @($changed | Where-Object {
+  $_ -match '^(apps/|packages/|scanners/|infra/|pnpm-lock\.yaml|package\.json|.*Dockerfile)'
+}).Count -gt 0
+
+# -- GPU ? (re-detection pour preserver l'acceleration) --
+$useGpu = $false
+if (Get-Command nvidia-smi -ErrorAction SilentlyContinue) {
+  $v = (& nvidia-smi --query-gpu=memory.total --format=csv,noheader,nounits 2>$null | Select-Object -First 1)
+  if ($v -match '^\s*\d+\s*$') { $useGpu = $true }
+}
+
+$envPath = Join-Path $RepoRoot '.env'
+$composeArgs = @('--env-file', $envPath, '-f', (Join-Path $RepoRoot 'infra\docker-compose.yml'))
+if ($useGpu) { $composeArgs += @('-f', (Join-Path $RepoRoot 'infra\docker-compose.gpu.yml')) }
+
+if ($needBuild) {
+  Step "Reconstruction des images impactees (peut prendre quelques minutes)"
+  & docker compose @composeArgs up -d --build 2>&1 | Write-Host
+  if ($LASTEXITCODE -ne 0 -and $useGpu) {
+    Warn "Echec GPU - nouvelle tentative en mode CPU."
+    $composeArgs = @('--env-file', $envPath, '-f', (Join-Path $RepoRoot 'infra\docker-compose.yml'))
+    & docker compose @composeArgs up -d --build 2>&1 | Write-Host
+  }
+} else {
+  Info "Changements non applicatifs (docs/config) - redemarrage leger."
+  & docker compose @composeArgs up -d 2>&1 | Write-Host
+}
+
+if ($LASTEXITCODE -ne 0) { Warn "La mise a jour a rencontre une erreur. Voir 'docker compose logs'." }
+else { Ok "Mise a jour terminee ! ($old --> $new)" }
+Read-Host "Appuie sur Entree pour fermer"
