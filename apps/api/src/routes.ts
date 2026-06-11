@@ -1,5 +1,5 @@
 import type { FastifyInstance } from 'fastify';
-import { prisma } from '@agentic-hub/db';
+import { prisma, Prisma } from '@agentic-hub/db';
 import {
   AuditResultSchema,
   AuditScheduleSchema,
@@ -333,7 +333,7 @@ export async function registerRoutes(app: FastifyInstance) {
     // null => repasse sur la politique par défaut globale.
     if (body === null) {
       try {
-        await prisma.repository.update({ where: { id }, data: { policy: undefined } });
+        await prisma.repository.update({ where: { id }, data: { policy: Prisma.DbNull } });
         return { policy: null };
       } catch {
         return reply.code(404).send({ error: 'Repository introuvable' });
@@ -354,7 +354,7 @@ export async function registerRoutes(app: FastifyInstance) {
     const body = (req.body as any)?.scoring;
     if (body === null) {
       try {
-        await prisma.repository.update({ where: { id }, data: { scoringOverride: undefined } });
+        await prisma.repository.update({ where: { id }, data: { scoringOverride: Prisma.DbNull } });
         return { scoring: null };
       } catch {
         return reply.code(404).send({ error: 'Repository introuvable' });
