@@ -20,7 +20,52 @@ import { startQueue } from './queue.js';
   return this.toString();
 };
 
+/** Vrai si l'app est servie au-delà de localhost (= réellement exposée). */
+function isPubliclyExposed(): boolean {
+  try {
+    const host = new URL(config.webOrigin).hostname.toLowerCase();
+    return !['localhost', '127.0.0.1', '::1', '0.0.0.0', ''].includes(host);
+  } catch {
+    return false; // origin non parsable ⇒ on considère un usage local
+  }
+}
+
+/**
+ * Garde-fous de configuration sur les secrets de chiffrement au repos (tokens
+ * GitHub, mots de passe SMTP, chiffrés via AH_SECRET_KEY).
+ *
+ * - Déploiement RÉELLEMENT exposé (WEB_ORIGIN ≠ localhost) : on REFUSE de
+ *   démarrer avec des secrets par défaut faibles — ils compromettraient les
+ *   données chiffrées accessibles à distance.
+ * - Install locale mono-poste (one-click, WEB_ORIGIN = localhost) : on se
+ *   contente d'AVERTIR pour ne pas casser le démarrage. On ne force pas non
+ *   plus AH_SECRET_KEY ici : changer la clé invaliderait les tokens déjà
+ *   chiffrés en base (l'utilisateur devrait tout reconnecter).
+ */
+function assertSecretsConfigured() {
+  const problems: string[] = [];
+  if (!config.secretKey || config.secretKey.length < 16) {
+    problems.push('AH_SECRET_KEY manquant ou trop court (≥ 16 caractères ; générer : openssl rand -hex 32).');
+  }
+  if (!config.ingestToken || config.ingestToken === 'change-me-ingest-token') {
+    problems.push('INGEST_TOKEN laissé à sa valeur par défaut.');
+  }
+  if (!problems.length) return;
+
+  const detail = problems.map((p) => ` - ${p}`).join('\n');
+  if (config.nodeEnv === 'production' && isPubliclyExposed()) {
+    throw new Error(
+      `Configuration de production invalide (app exposée sur ${config.webOrigin}) :\n${detail}\n` +
+        'Définissez ces secrets avant un déploiement exposé sur Internet.',
+    );
+  }
+  // Usage local : on n'empêche pas le démarrage, mais on alerte clairement.
+  console.warn(`[agentic-hub] ⚠️  Secrets par défaut détectés (OK en local, À CHANGER si exposé) :\n${detail}`);
+}
+
 async function main() {
+  assertSecretsConfigured();
+
   const app = Fastify({
     logger: { level: process.env.LOG_LEVEL ?? 'info' },
     bodyLimit: 64 * 1024 * 1024, // payloads d'ingestion volumineux

@@ -15,6 +15,7 @@ import { sendDigest } from './digest.js';
 import { encrypt } from './crypto.js';
 import {
   buildDependabotYaml,
+  ecosystemsForLanguage,
   evaluateGateCounts,
   resolveEffectivePolicy,
 } from '@agentic-hub/audit-engine';
@@ -25,18 +26,6 @@ import { buildReportMarkdown, loadAuditResult, persistAuditResult } from './serv
 import { sseHub } from './sse.js';
 
 const ACTIVE_STATUSES = ['queued', 'running', 'analyzing'];
-
-const LANG_TO_ECOSYSTEM: Record<string, string> = {
-  TypeScript: 'npm',
-  JavaScript: 'npm',
-  Vue: 'npm',
-  Python: 'pip',
-  Go: 'gomod',
-  Ruby: 'bundler',
-  PHP: 'composer',
-  Java: 'maven',
-  Rust: 'cargo',
-};
 
 export async function registerRoutes(app: FastifyInstance) {
   app.get('/api/health', async () => {
@@ -153,8 +142,7 @@ export async function registerRoutes(app: FastifyInstance) {
     const { id } = req.params as { id: string };
     const repo = await prisma.repository.findUnique({ where: { id } });
     if (!repo) return reply.code(404).send({ error: 'Repository introuvable' });
-    const ecosystems = [...new Set([repo.language ?? 'JavaScript'].map((l) => LANG_TO_ECOSYSTEM[l] ?? 'npm'))];
-    return { yaml: buildDependabotYaml(ecosystems) };
+    return { yaml: buildDependabotYaml(ecosystemsForLanguage(repo.language)) };
   });
 
   // ── Déclenchement d'un audit ────────────────────────────────
@@ -208,6 +196,10 @@ export async function registerRoutes(app: FastifyInstance) {
     if (!audit) return reply.code(404).send({ error: 'Audit introuvable' });
 
     // Recalcule la gate avec la politique ACTUELLE (reflète les changements de réglage).
+    // NB : les colonnes persistées audit.gatePassed / audit.gateReasons peuvent être
+    // périmées si la politique a changé depuis la fin de l'audit ; la valeur fiable
+    // est celle renvoyée ici (recalculée à la lecture). La persistance n'est mise à
+    // jour qu'à la fin d'un (nouvel) audit, pas rétroactivement.
     const setting = await prisma.setting.findUnique({ where: { id: 1 } });
     const pol = resolveEffectivePolicy((audit.repository.policy ?? setting?.policy) as any);
     const counts = await prisma.finding.groupBy({

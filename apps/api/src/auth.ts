@@ -44,8 +44,12 @@ export async function registerAuthRoutes(app: FastifyInstance) {
     };
   });
 
+  // Anti-brute-force : limite stricte et dédiée sur les routes OAuth
+  // (au-delà de la limite globale), pour éviter l'épuisement de sessions/états.
+  const authRateLimit = { config: { rateLimit: { max: 20, timeWindow: '1 minute' } } };
+
   // Démarre le flux OAuth : redirige vers GitHub.
-  app.get('/api/auth/github/login', async (_req, reply) => {
+  app.get('/api/auth/github/login', authRateLimit, async (_req, reply) => {
     const { clientId, callbackUrl, scope } = config.github.oauth;
     if (!clientId) {
       return reply
@@ -62,7 +66,7 @@ export async function registerAuthRoutes(app: FastifyInstance) {
   });
 
   // Callback OAuth : échange le code, récupère l'utilisateur, stocke le token.
-  app.get('/api/auth/github/callback', async (req, reply) => {
+  app.get('/api/auth/github/callback', authRateLimit, async (req, reply) => {
     const { code, state } = req.query as { code?: string; state?: string };
     if (!code || !state || !consumeState(state)) {
       return reply.redirect(`${config.webOrigin}/?github=error`);

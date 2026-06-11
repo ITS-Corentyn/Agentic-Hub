@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { onMounted, ref } from 'vue';
+import { ShieldCheck, Bell, Mail, Scale, CircleCheck } from '@lucide/vue';
 import { api, type Dimension } from '../api';
 import { DIMENSION_LABELS } from '../lib/ui';
 
@@ -76,22 +77,22 @@ onMounted(load);
     <!-- Politique qualité (gate par défaut) -->
     <div class="card space-y-4 p-6">
       <div>
-        <h2 class="text-sm font-semibold">🚦 Politique qualité (gate par défaut)</h2>
+        <h2 class="flex items-center gap-2 text-sm font-semibold"><ShieldCheck class="h-4 w-4 text-brand-400" /> Politique qualité (gate par défaut)</h2>
         <p class="text-xs text-slate-400">Seuils qui font passer un audit en « KO » (surchargés par repo).</p>
       </div>
       <div class="flex items-center gap-4">
-        <label class="w-40 text-sm">Score minimum</label>
-        <input v-model.number="policy.minScore" type="number" min="0" max="100" placeholder="aucun"
+        <label for="pol-min" class="w-40 text-sm">Score minimum</label>
+        <input id="pol-min" v-model.number="policy.minScore" type="number" min="0" max="100" placeholder="aucun"
           class="w-28 rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-sm outline-none focus:border-brand-500" />
       </div>
       <div class="flex items-center gap-4">
-        <label class="w-40 text-sm">Max. critiques</label>
-        <input v-model.number="policy.maxCritical" type="number" min="0"
+        <label for="pol-crit" class="w-40 text-sm">Max. critiques</label>
+        <input id="pol-crit" v-model.number="policy.maxCritical" type="number" min="0"
           class="w-28 rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-sm outline-none focus:border-brand-500" />
       </div>
       <div class="flex items-center gap-4">
-        <label class="w-40 text-sm">Max. élevés</label>
-        <input v-model.number="policy.maxHigh" type="number" min="0" placeholder="aucun"
+        <label for="pol-high" class="w-40 text-sm">Max. élevés</label>
+        <input id="pol-high" v-model.number="policy.maxHigh" type="number" min="0" placeholder="aucun"
           class="w-28 rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-sm outline-none focus:border-brand-500" />
       </div>
     </div>
@@ -99,12 +100,12 @@ onMounted(load);
     <!-- Notifications -->
     <div class="card space-y-4 p-6">
       <div>
-        <h2 class="text-sm font-semibold">🔔 Notifications</h2>
+        <h2 class="flex items-center gap-2 text-sm font-semibold"><Bell class="h-4 w-4 text-brand-400" /> Notifications</h2>
         <p class="text-xs text-slate-400">Webhook compatible Slack / Mattermost / Discord.</p>
       </div>
       <div class="flex items-center gap-4">
-        <label class="w-40 text-sm">Déclencheur</label>
-        <select v-model="notify.mode"
+        <label for="notify-mode" class="w-40 text-sm">Déclencheur</label>
+        <select id="notify-mode" v-model="notify.mode"
           class="rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-sm outline-none focus:border-brand-500">
           <option value="off">Désactivé</option>
           <option value="always">À chaque audit</option>
@@ -113,8 +114,8 @@ onMounted(load);
         </select>
       </div>
       <div class="flex items-center gap-4">
-        <label class="w-40 text-sm">URL du webhook</label>
-        <input v-model="notify.webhookUrl" type="url" placeholder="https://hooks.slack.com/…"
+        <label for="notify-url" class="w-40 text-sm">URL du webhook</label>
+        <input id="notify-url" v-model="notify.webhookUrl" type="url" placeholder="https://hooks.slack.com/…"
           class="flex-1 rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-sm outline-none focus:border-brand-500" />
       </div>
     </div>
@@ -123,7 +124,7 @@ onMounted(load);
     <div class="card space-y-4 p-6">
       <div class="flex items-center justify-between">
         <div>
-          <h2 class="text-sm font-semibold">✉️ Digest e-mail (hebdomadaire)</h2>
+          <h2 class="flex items-center gap-2 text-sm font-semibold"><Mail class="h-4 w-4 text-brand-400" /> Digest e-mail (hebdomadaire)</h2>
           <p class="text-xs text-slate-400">Récap des scores de tous les repos, chaque lundi.</p>
         </div>
         <label class="flex items-center gap-2 text-sm">
@@ -131,12 +132,12 @@ onMounted(load);
         </label>
       </div>
       <div class="grid grid-cols-2 gap-3">
-        <input v-model="email.host" placeholder="Hôte SMTP" class="rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-sm outline-none focus:border-brand-500" />
-        <input v-model.number="email.port" type="number" placeholder="Port (587)" class="rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-sm outline-none focus:border-brand-500" />
-        <input v-model="email.user" placeholder="Utilisateur" class="rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-sm outline-none focus:border-brand-500" />
-        <input v-model="email.pass" type="password" placeholder="Mot de passe" class="rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-sm outline-none focus:border-brand-500" />
-        <input v-model="email.from" placeholder="Expéditeur (from)" class="rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-sm outline-none focus:border-brand-500" />
-        <input v-model="email.to" placeholder="Destinataire(s)" class="rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-sm outline-none focus:border-brand-500" />
+        <input v-model="email.host" aria-label="Hôte SMTP" placeholder="Hôte SMTP" class="rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-sm outline-none focus:border-brand-500" />
+        <input v-model.number="email.port" type="number" aria-label="Port SMTP" placeholder="Port (587)" class="rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-sm outline-none focus:border-brand-500" />
+        <input v-model="email.user" aria-label="Utilisateur SMTP" placeholder="Utilisateur" class="rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-sm outline-none focus:border-brand-500" />
+        <input v-model="email.pass" type="password" aria-label="Mot de passe SMTP" placeholder="Mot de passe" class="rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-sm outline-none focus:border-brand-500" />
+        <input v-model="email.from" aria-label="Adresse expéditeur" placeholder="Expéditeur (from)" class="rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-sm outline-none focus:border-brand-500" />
+        <input v-model="email.to" aria-label="Adresse(s) destinataire(s)" placeholder="Destinataire(s)" class="rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-sm outline-none focus:border-brand-500" />
       </div>
       <label class="flex items-center gap-2 text-xs text-slate-400">
         <input v-model="email.secure" type="checkbox" class="accent-brand-500" /> TLS (port 465)
@@ -149,22 +150,22 @@ onMounted(load);
 
     <!-- Pondérations de scoring -->
     <div class="card space-y-4 p-6">
-      <h2 class="text-sm font-semibold">⚖️ Pondération des dimensions</h2>
+      <h2 class="flex items-center gap-2 text-sm font-semibold"><Scale class="h-4 w-4 text-brand-400" /> Pondération des dimensions</h2>
       <div v-for="d in DIMS" :key="d" class="flex items-center gap-4">
-        <label class="w-32 text-sm">{{ DIMENSION_LABELS[d] }}</label>
-        <input v-model.number="weights[d]" type="range" min="0" max="40" class="flex-1 accent-brand-500" />
+        <label :for="`w-${d}`" class="w-32 text-sm">{{ DIMENSION_LABELS[d] }}</label>
+        <input :id="`w-${d}`" v-model.number="weights[d]" type="range" min="0" max="40" :aria-label="`Pondération ${DIMENSION_LABELS[d]}`" class="flex-1 accent-brand-500" />
         <span class="w-10 text-right text-sm tabular-nums">{{ weights[d] }}</span>
       </div>
       <div class="flex items-center gap-4 border-t border-white/5 pt-4">
-        <label class="w-32 text-sm">Baseline LOC</label>
-        <input v-model.number="locBaseline" type="number"
+        <label for="loc-baseline" class="w-32 text-sm">Baseline LOC</label>
+        <input id="loc-baseline" v-model.number="locBaseline" type="number"
           class="flex-1 rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-sm outline-none focus:border-brand-500" />
       </div>
     </div>
 
     <div class="flex items-center gap-3">
       <button class="btn-primary" @click="save">Enregistrer</button>
-      <span v-if="saved" class="text-sm text-emerald-400">✔ Enregistré</span>
+      <span v-if="saved" class="inline-flex items-center gap-1 text-sm text-emerald-400"><CircleCheck class="h-4 w-4" /> Enregistré</span>
       <span v-if="error" class="text-sm text-red-400">{{ error }}</span>
     </div>
   </section>
