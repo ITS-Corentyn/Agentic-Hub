@@ -198,12 +198,16 @@ export const api = {
     }),
 
   getSettings: () =>
-    http<{ scoring: any; policy: any; notify: { webhookUrl: string; mode: string } }>('/api/settings'),
-  saveSettings: (data: { scoring?: any; policy?: any; notify?: any }) =>
-    http<{ scoring: any; policy: any; notify: any }>('/api/settings', {
+    http<{ scoring: any; policy: any; notify: { webhookUrl: string; mode: string }; email: any }>(
+      '/api/settings',
+    ),
+  saveSettings: (data: { scoring?: any; policy?: any; notify?: any; email?: any }) =>
+    http<{ scoring: any; policy: any; notify: any; email: any }>('/api/settings', {
       method: 'PUT',
       body: JSON.stringify(data),
     }),
+  sendDigestTest: () =>
+    http<{ sent: boolean; message: string }>('/api/digest/test', { method: 'POST', body: '{}' }),
   setSchedule: (repoId: string, schedule: string) =>
     http<{ auditSchedule: string }>(`/api/repositories/${repoId}/schedule`, {
       method: 'PUT',

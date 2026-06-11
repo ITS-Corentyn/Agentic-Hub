@@ -21,8 +21,10 @@ const policy = ref<{ minScore: number | null; maxCritical: number | null; maxHig
   maxHigh: null,
 });
 const notify = ref<{ webhookUrl: string; mode: string }>({ webhookUrl: '', mode: 'off' });
+const email = ref({ enabled: false, host: '', port: 587, secure: false, user: '', pass: '', from: '', to: '' });
 const saved = ref(false);
 const error = ref('');
+const digestMsg = ref('');
 
 async function load() {
   try {
@@ -31,8 +33,19 @@ async function load() {
     locBaseline.value = s.scoring.locBaseline ?? 2000;
     if (s.policy) policy.value = { minScore: s.policy.minScore ?? null, maxCritical: s.policy.maxCritical ?? 0, maxHigh: s.policy.maxHigh ?? null };
     if (s.notify) notify.value = { webhookUrl: s.notify.webhookUrl ?? '', mode: s.notify.mode ?? 'off' };
+    if (s.email) email.value = { ...email.value, ...s.email };
   } catch (e) {
     error.value = (e as Error).message;
+  }
+}
+
+async function testDigest() {
+  digestMsg.value = 'Envoi…';
+  try {
+    const r = await api.sendDigestTest();
+    digestMsg.value = r.message;
+  } catch (e) {
+    digestMsg.value = (e as Error).message;
   }
 }
 
@@ -44,6 +57,7 @@ async function save() {
       scoring: { weights: weights.value, locBaseline: Number(locBaseline.value) },
       policy: policy.value,
       notify: notify.value,
+      email: { ...email.value, port: Number(email.value.port) },
     });
     saved.value = true;
     setTimeout(() => (saved.value = false), 2500);
@@ -102,6 +116,34 @@ onMounted(load);
         <label class="w-40 text-sm">URL du webhook</label>
         <input v-model="notify.webhookUrl" type="url" placeholder="https://hooks.slack.com/…"
           class="flex-1 rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-sm outline-none focus:border-brand-500" />
+      </div>
+    </div>
+
+    <!-- Digest e-mail hebdomadaire -->
+    <div class="card space-y-4 p-6">
+      <div class="flex items-center justify-between">
+        <div>
+          <h2 class="text-sm font-semibold">✉️ Digest e-mail (hebdomadaire)</h2>
+          <p class="text-xs text-slate-400">Récap des scores de tous les repos, chaque lundi.</p>
+        </div>
+        <label class="flex items-center gap-2 text-sm">
+          <input v-model="email.enabled" type="checkbox" class="accent-brand-500" /> Activé
+        </label>
+      </div>
+      <div class="grid grid-cols-2 gap-3">
+        <input v-model="email.host" placeholder="Hôte SMTP" class="rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-sm outline-none focus:border-brand-500" />
+        <input v-model.number="email.port" type="number" placeholder="Port (587)" class="rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-sm outline-none focus:border-brand-500" />
+        <input v-model="email.user" placeholder="Utilisateur" class="rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-sm outline-none focus:border-brand-500" />
+        <input v-model="email.pass" type="password" placeholder="Mot de passe" class="rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-sm outline-none focus:border-brand-500" />
+        <input v-model="email.from" placeholder="Expéditeur (from)" class="rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-sm outline-none focus:border-brand-500" />
+        <input v-model="email.to" placeholder="Destinataire(s)" class="rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-sm outline-none focus:border-brand-500" />
+      </div>
+      <label class="flex items-center gap-2 text-xs text-slate-400">
+        <input v-model="email.secure" type="checkbox" class="accent-brand-500" /> TLS (port 465)
+      </label>
+      <div class="flex items-center gap-3">
+        <button class="btn-ghost" @click="testDigest">Envoyer un test</button>
+        <span v-if="digestMsg" class="text-xs text-slate-400">{{ digestMsg }}</span>
       </div>
     </div>
 

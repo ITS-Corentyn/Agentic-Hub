@@ -1,7 +1,24 @@
 import { Octokit } from '@octokit/rest';
+import { createAppAuth } from '@octokit/auth-app';
 import { prisma } from '@agentic-hub/db';
 import { buildDependabotYaml } from '@agentic-hub/audit-engine';
 import { config } from './config.js';
+
+// Cache du token d'installation GitHub App (régénéré avant expiration).
+let appTokenCache: { token: string; exp: number } | null = null;
+async function getAppInstallationToken(): Promise<string | null> {
+  const { appId, privateKey, installationId } = config.github.app;
+  if (!appId || !privateKey || !installationId) return null;
+  if (appTokenCache && appTokenCache.exp > Date.now() + 60_000) return appTokenCache.token;
+  try {
+    const auth = createAppAuth({ appId, privateKey, installationId: Number(installationId) });
+    const res = await auth({ type: 'installation' });
+    appTokenCache = { token: res.token, exp: new Date(res.expiresAt).getTime() };
+    return res.token;
+  } catch {
+    return null;
+  }
+}
 
 export interface RemoteRepo {
   githubId: number;
@@ -20,6 +37,9 @@ export interface RemoteRepo {
  * sinon le PAT d'environnement (GITHUB_TOKEN). Renvoie null si aucun.
  */
 export async function getActiveToken(): Promise<string | null> {
+  // Priorité : GitHub App (installation) > OAuth (compte connecté) > PAT d'env.
+  const appToken = await getAppInstallationToken();
+  if (appToken) return appToken;
   const auth = await prisma.githubAuth.findUnique({ where: { id: 1 } });
   if (auth?.accessToken) return auth.accessToken;
   return config.github.token || null;

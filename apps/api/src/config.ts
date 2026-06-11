@@ -11,6 +11,17 @@ export const config = {
     /** Repo hébergeant le workflow d'audit (owner/repo). Vide ⇒ mode local. */
     workflowRepo: process.env.AUDIT_WORKFLOW_REPO ?? '',
     workflowFile: process.env.AUDIT_WORKFLOW_FILE ?? 'audit.yml',
+    // GitHub App (alternative à l'OAuth : quotas élevés, permissions fines).
+    app: {
+      appId: process.env.GITHUB_APP_ID ?? '',
+      // Clé privée PEM (ou base64 du PEM).
+      privateKey: (() => {
+        const raw = process.env.GITHUB_APP_PRIVATE_KEY ?? '';
+        if (!raw) return '';
+        return raw.includes('BEGIN') ? raw.replace(/\\n/g, '\n') : Buffer.from(raw, 'base64').toString('utf8');
+      })(),
+      installationId: process.env.GITHUB_APP_INSTALLATION_ID ?? '',
+    },
     oauth: {
       clientId: process.env.GITHUB_OAUTH_CLIENT_ID ?? '',
       clientSecret: process.env.GITHUB_OAUTH_CLIENT_SECRET ?? '',

@@ -160,6 +160,7 @@ model Setting {
   scoring   Json?
   policy    Json? // politique par défaut (gate) appliquée aux repos sans surcharge
   notify    Json? // { webhookUrl, mode } pour notifications Slack/Teams/Discord
+  email     Json? // { host, port, secure, user, pass, from, to, enabled } pour le digest
   updatedAt DateTime @updatedAt
 }
 

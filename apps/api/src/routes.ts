@@ -5,11 +5,13 @@ import {
   AuditScheduleSchema,
   DEFAULT_POLICY,
   DEFAULT_SCORING,
+  EmailConfigSchema,
   NotifyConfigSchema,
   PolicySchema,
   ScoringConfigSchema,
   type SseEvent,
 } from '@agentic-hub/shared';
+import { sendDigest } from './digest.js';
 import { buildDependabotYaml } from '@agentic-hub/audit-engine';
 import { config } from './config.js';
 import { dispatchAuditWorkflow, getActiveToken, getHeadSha, listRepositories } from './github.js';
@@ -332,6 +334,7 @@ export async function registerRoutes(app: FastifyInstance) {
       scoring: s?.scoring ?? DEFAULT_SCORING,
       policy: s?.policy ?? DEFAULT_POLICY,
       notify: s?.notify ?? { webhookUrl: '', mode: 'off' },
+      email: s?.email ?? { enabled: false, host: '', port: 587, secure: false, user: '', pass: '', from: '', to: '' },
     };
   });
 
@@ -353,11 +356,26 @@ export async function registerRoutes(app: FastifyInstance) {
       if (!p.success) return reply.code(400).send({ error: 'Config de notification invalide' });
       data.notify = p.data;
     }
+    if (body.email !== undefined) {
+      const p = EmailConfigSchema.safeParse(body.email);
+      if (!p.success) return reply.code(400).send({ error: 'Config e-mail invalide' });
+      data.email = p.data;
+    }
     const s = await prisma.setting.upsert({
       where: { id: 1 },
       update: data,
       create: { id: 1, ...data },
     });
-    return { scoring: s.scoring, policy: s.policy, notify: s.notify };
+    return { scoring: s.scoring, policy: s.policy, notify: s.notify, email: s.email };
+  });
+
+  // Envoi immédiat du digest (test).
+  app.post('/api/digest/test', async (_req, reply) => {
+    try {
+      const r = await sendDigest(true);
+      return reply.code(r.sent ? 200 : 400).send(r);
+    } catch (err) {
+      return reply.code(502).send({ sent: false, message: (err as Error).message });
+    }
   });
 }

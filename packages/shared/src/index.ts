@@ -241,6 +241,19 @@ export const NotifyConfigSchema = z.object({
 });
 export type NotifyConfig = z.infer<typeof NotifyConfigSchema>;
 
+// Configuration SMTP du digest e-mail hebdomadaire.
+export const EmailConfigSchema = z.object({
+  enabled: z.boolean().default(false),
+  host: z.string().default(''),
+  port: z.number().int().positive().default(587),
+  secure: z.boolean().default(false),
+  user: z.string().default(''),
+  pass: z.string().default(''),
+  from: z.string().default(''),
+  to: z.string().default(''),
+});
+export type EmailConfig = z.infer<typeof EmailConfigSchema>;
+
 export interface SseEvent {
   type: 'status' | 'log' | 'done' | 'error';
   auditId: string;

@@ -4,10 +4,12 @@ import { config } from './config.js';
 import { dispatchAuditWorkflow, getHeadSha } from './github.js';
 import { runLocalAudit } from './local-runner.js';
 import { markFailed, runSynthesisAndFinish } from './service.js';
+import { sendDigest } from './digest.js';
 
 export const QUEUE_LOCAL_AUDIT = 'audit.local';
 export const QUEUE_SYNTHESIS = 'audit.synthesis';
 export const QUEUE_SCHEDULE_TICK = 'audit.schedule-tick';
+export const QUEUE_DIGEST = 'digest.weekly';
 
 let boss: PgBoss | null = null;
 
@@ -20,6 +22,7 @@ export async function startQueue(): Promise<PgBoss> {
   await boss.createQueue(QUEUE_LOCAL_AUDIT);
   await boss.createQueue(QUEUE_SYNTHESIS);
   await boss.createQueue(QUEUE_SCHEDULE_TICK);
+  await boss.createQueue(QUEUE_DIGEST);
 
   // Worker : audit local (clone + scan + ingest).
   await boss.work<{ auditId: string }>(QUEUE_LOCAL_AUDIT, async (jobs) => {
@@ -56,6 +59,16 @@ export async function startQueue(): Promise<PgBoss> {
   });
   // Cron horaire : pg-boss envoie un job sur la queue tick chaque heure.
   await boss.schedule(QUEUE_SCHEDULE_TICK, '0 * * * *');
+
+  // Digest e-mail : chaque lundi à 8h.
+  await boss.work(QUEUE_DIGEST, async () => {
+    try {
+      await sendDigest(true);
+    } catch (err) {
+      console.error('[digest]', (err as Error).message);
+    }
+  });
+  await boss.schedule(QUEUE_DIGEST, '0 8 * * 1');
 
   return boss;
 }
