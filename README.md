@@ -150,6 +150,27 @@ backend 10 %, frontend 8 %, perf 7 %). Pondérations ajustables dans **Réglages
 - **Notifications** (Réglages) vers un webhook **Slack / Mattermost / Discord** :
   à chaque audit, sur critique/gate KO, ou sur baisse de score.
 
+## 📦 Exports & intégrations
+
+- **Rapport** : Markdown, **PDF** (Chromium), **CSV** des findings.
+- **Badge de score** SVG : `…/api/repositories/:id/badge.svg` ou `…/api/badge/:owner/:repo.svg`.
+- **Check de PR** : bouton qui ouvre une PR ajoutant un workflow GitHub Actions
+  (audit + commentaire + statut bloquant si findings élevés). Nécessite le secret
+  `AGENTIC_HUB_TOKEN` (lecture du dépôt moteur).
+- **Lighthouse** (perf / a11y / SEO) : opt-in via une URL d'app déployée, par repo.
+- **Digest e-mail** hebdomadaire (SMTP) : récap des scores de tous les repos.
+- **Recherche globale** des findings + **palette de commandes** (Ctrl/Cmd+K).
+
+## 🔌 Authentification GitHub
+
+Par ordre de priorité : **GitHub App** (token d'installation, quotas élevés —
+`GITHUB_APP_*`) › **OAuth** (compte connecté) › **PAT** (`GITHUB_TOKEN`).
+
+## ⚙️ Performance
+
+Les scanners s'exécutent **en parallèle** (pool). Régler `SCAN_CONCURRENCY`
+selon l'hôte (plus élevé sur multi-cœurs, plus bas si la machine est contrainte).
+
 ## 📄 Licence
 
 MIT — © 2026 ITS-Corentyn

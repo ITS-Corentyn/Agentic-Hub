@@ -275,8 +275,9 @@ export const RUNNERS: Runner[] = [
   runLighthouse,
 ];
 
-/** Concurrence par défaut (équilibre vitesse / charge CPU-mémoire). */
-const DEFAULT_CONCURRENCY = Number(process.env.SCAN_CONCURRENCY ?? 4);
+/** Concurrence par défaut (équilibre vitesse / charge CPU-mémoire). Surchargeable
+ *  via SCAN_CONCURRENCY (monter sur un hôte multi-cœurs, baisser si contraint). */
+const DEFAULT_CONCURRENCY = Number(process.env.SCAN_CONCURRENCY ?? 3);
 
 /**
  * Exécute tous les scanners disponibles EN PARALLÈLE (pool borné) et agrège
