@@ -161,6 +161,15 @@ backend 10 %, frontend 8 %, perf 7 %). Pondérations ajustables dans **Réglages
 - **Digest e-mail** hebdomadaire (SMTP) : récap des scores de tous les repos.
 - **Recherche globale** des findings + **palette de commandes** (Ctrl/Cmd+K).
 
+## 👥 Multi-utilisateur (RBAC)
+
+- **Connexion GitHub obligatoire** dès que l'OAuth est configuré (sinon mode mono-poste ouvert).
+- **Rôles** : `admin` (tout), `member` (audits + remédiation), `viewer` (lecture seule),
+  `pending` (en attente d'approbation). Le **1er compte connecté devient admin**.
+- **Sessions révocables** (cookie httpOnly) ; un admin peut changer les rôles / désactiver
+  un compte (page **Utilisateurs**). Garde-fous : dernier admin protégé, pas d'auto-rétrogradation.
+- Réglages : `AUTH_ENABLED`, `AUTH_DEFAULT_ROLE`, `AUTH_COOKIE_SECURE`, `AUTH_SESSION_DAYS`.
+
 ## 🔌 Authentification GitHub
 
 Par ordre de priorité : **GitHub App** (token d'installation, quotas élevés —
