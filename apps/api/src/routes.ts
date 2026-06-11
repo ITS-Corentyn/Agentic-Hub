@@ -258,6 +258,9 @@ export async function registerRoutes(app: FastifyInstance) {
       'Cache-Control': 'no-cache',
       Connection: 'keep-alive',
       'Access-Control-Allow-Origin': config.webOrigin,
+      // Indispensable : l'EventSource envoie le cookie de session (credentials).
+      'Access-Control-Allow-Credentials': 'true',
+      'X-Accel-Buffering': 'no', // évite la mise en tampon (proxy/nginx)
     });
     reply.raw.write(`event: ping\ndata: {}\n\n`);
 

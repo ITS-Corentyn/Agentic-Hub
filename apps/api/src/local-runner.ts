@@ -3,7 +3,7 @@ import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { prisma } from '@agentic-hub/db';
-import { runAudit } from '@agentic-hub/audit-engine';
+import { runAudit, RUNNERS } from '@agentic-hub/audit-engine';
 import { getActiveToken } from './github.js';
 import { persistAuditResult } from './service.js';
 import { sseHub } from './sse.js';
@@ -50,6 +50,10 @@ export async function runLocalAudit(auditId: string): Promise<void> {
 
     sseHub.publish({ type: 'status', auditId, status: 'running', message: 'Exécution des scanners…', progress: 30 });
 
+    // Progression granulaire : la barre monte de 30 à ~68 % au fil des scanners.
+    const totalSteps = RUNNERS.length + 1; // + l'étape "engine"
+    let stepsDone = 0;
+
     const setting = await prisma.setting.findUnique({ where: { id: 1 } });
     const { result, artifacts } = await runAudit(workdir, {
       auditId,
@@ -59,8 +63,17 @@ export async function runLocalAudit(auditId: string): Promise<void> {
       scoring: (repo.scoringOverride as any) ?? (setting?.scoring as any) ?? undefined,
       lighthouseUrl: repo.lighthouseUrl,
       keepRaw: true,
-      onProgress: (tool) =>
-        sseHub.publish({ type: 'log', auditId, message: `scanner: ${tool}` }),
+      onProgress: (tool) => {
+        stepsDone += 1;
+        const pct = 30 + Math.min(38, Math.round((stepsDone / totalSteps) * 38));
+        sseHub.publish({
+          type: 'status',
+          auditId,
+          status: 'running',
+          message: `Scanner terminé : ${tool}`,
+          progress: pct,
+        });
+      },
     });
 
     if (artifacts.length) {
