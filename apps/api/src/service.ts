@@ -1,6 +1,11 @@
 import { prisma } from '@agentic-hub/db';
-import { DEFAULT_POLICY, PolicySchema, type AuditResult } from '@agentic-hub/shared';
-import { generateReport, buildStaticSynthesis, evaluateGate } from '@agentic-hub/audit-engine';
+import type { AuditResult } from '@agentic-hub/shared';
+import {
+  generateReport,
+  buildStaticSynthesis,
+  evaluateGate,
+  resolveEffectivePolicy,
+} from '@agentic-hub/audit-engine';
 import { generateSynthesis } from './ollama.js';
 import { notifyAuditDone } from './notify.js';
 import { sseHub } from './sse.js';
@@ -134,8 +139,8 @@ export async function runSynthesisAndFinish(auditId: string): Promise<void> {
   // Gate qualité : politique du repo, sinon politique par défaut globale.
   const repo = await prisma.repository.findFirst({ where: { audits: { some: { id: auditId } } } });
   const setting = await prisma.setting.findUnique({ where: { id: 1 } });
-  const policy = PolicySchema.safeParse(repo?.policy ?? setting?.policy);
-  const gate = evaluateGate(result, policy.success ? policy.data : DEFAULT_POLICY);
+  const policy = resolveEffectivePolicy((repo?.policy ?? setting?.policy) as any);
+  const gate = evaluateGate(result, policy);
 
   // Score de l'audit précédent (pour notification "score-drop").
   const prev = await prisma.audit.findFirst({

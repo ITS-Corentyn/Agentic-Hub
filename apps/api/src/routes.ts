@@ -13,7 +13,11 @@ import {
 } from '@agentic-hub/shared';
 import { sendDigest } from './digest.js';
 import { encrypt } from './crypto.js';
-import { buildDependabotYaml } from '@agentic-hub/audit-engine';
+import {
+  buildDependabotYaml,
+  evaluateGateCounts,
+  resolveEffectivePolicy,
+} from '@agentic-hub/audit-engine';
 import { config } from './config.js';
 import { dispatchAuditWorkflow, getActiveToken, getHeadSha, listRepositories } from './github.js';
 import { enqueueLocalAudit } from './queue.js';
@@ -202,7 +206,19 @@ export async function registerRoutes(app: FastifyInstance) {
       },
     });
     if (!audit) return reply.code(404).send({ error: 'Audit introuvable' });
-    return audit;
+
+    // Recalcule la gate avec la politique ACTUELLE (reflète les changements de réglage).
+    const setting = await prisma.setting.findUnique({ where: { id: 1 } });
+    const pol = resolveEffectivePolicy((audit.repository.policy ?? setting?.policy) as any);
+    const counts = await prisma.finding.groupBy({
+      by: ['severity'],
+      where: { auditId: id, status: { not: 'ignored' } },
+      _count: { _all: true },
+    });
+    const crit = counts.find((c) => c.severity === 'critical')?._count._all ?? 0;
+    const high = counts.find((c) => c.severity === 'high')?._count._all ?? 0;
+    const gate = evaluateGateCounts(audit.globalScore ?? 0, crit, high, pol);
+    return { ...audit, gatePassed: gate.passed, gateReasons: gate.reasons };
   });
 
   // Annulation d'un audit en cours (best-effort).
@@ -374,7 +390,7 @@ export async function registerRoutes(app: FastifyInstance) {
     const s = await prisma.setting.findUnique({ where: { id: 1 } });
     return {
       scoring: s?.scoring ?? DEFAULT_SCORING,
-      policy: s?.policy ?? DEFAULT_POLICY,
+      policy: resolveEffectivePolicy(s?.policy as any),
       notify: s?.notify ?? { webhookUrl: '', mode: 'off' },
       // Le mot de passe SMTP n'est jamais renvoyé en clair (masqué).
       email: {

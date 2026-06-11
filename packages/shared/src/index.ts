@@ -236,7 +236,8 @@ export const PolicySchema = z.object({
 });
 export type Policy = z.infer<typeof PolicySchema>;
 
-export const DEFAULT_POLICY: Policy = { minScore: null, maxCritical: 0, maxHigh: null };
+// Défaut "agence" : score < 70 ou présence de critique => gate KO.
+export const DEFAULT_POLICY: Policy = { minScore: 70, maxCritical: 0, maxHigh: null };
 
 export interface GateResult {
   passed: boolean;
