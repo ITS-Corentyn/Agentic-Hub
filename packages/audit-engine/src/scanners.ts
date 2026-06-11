@@ -6,6 +6,7 @@ import type { Finding, ToolName } from '@agentic-hub/shared';
 import { exec, hasTool, tryParseJson } from './util.js';
 import {
   normalizeDependencyCruiser,
+  normalizeDepcheck,
   normalizeEslint,
   normalizeGitleaks,
   normalizeJscpd,
@@ -49,7 +50,11 @@ const SEMGREP_CONFIGS = (
 
 const runSemgrep: Runner = (root) => {
   if (!hasTool('semgrep')) return skipped('semgrep');
-  const configArgs = SEMGREP_CONFIGS.flatMap((c) => ['--config', c]);
+  const configs = [...SEMGREP_CONFIGS];
+  // Règles Semgrep custom du repo (bring-your-own-rules) si présentes.
+  const customRules = join(root, '.agentic-hub', 'semgrep');
+  if (existsSync(customRules)) configs.push(customRules);
+  const configArgs = configs.flatMap((c) => ['--config', c]);
   const res = exec(
     'semgrep',
     ['scan', '--json', '--quiet', '--metrics=off', '--timeout=0', '--disable-version-check', ...configArgs, '.'],
@@ -88,7 +93,7 @@ const runTrivy: Runner = (root) => {
   if (!hasTool('trivy')) return skipped('trivy');
   const res = exec(
     'trivy',
-    ['fs', '--quiet', '--scanners', 'vuln,misconfig,secret', '--format', 'json', root],
+    ['fs', '--quiet', '--scanners', 'vuln,misconfig,secret,license', '--format', 'json', root],
     root,
     900_000,
   );
@@ -114,6 +119,16 @@ const runNpmAudit: Runner = (root) => {
   const parsed = tryParseJson(res.stdout);
   if (!parsed) return { tool: 'npm-audit', ran: false, raw: res.stderr, findings: [] };
   return { tool: 'npm-audit', ran: true, raw: res.stdout, findings: normalizeNpmAudit(parsed) };
+};
+
+// ── depcheck (dépendances inutilisées / manquantes) ──────────
+const runDepcheck: Runner = (root) => {
+  if (!existsSync(join(root, 'package.json'))) return skipped('depcheck', 'pas de package.json');
+  if (!hasTool('depcheck')) return skipped('depcheck');
+  const res = exec('depcheck', ['--json'], root, 180_000);
+  const parsed = tryParseJson(res.stdout);
+  if (!parsed) return { tool: 'depcheck', ran: false, raw: res.stderr, findings: [] };
+  return { tool: 'depcheck', ran: true, raw: res.stdout, findings: normalizeDepcheck(parsed) };
 };
 
 // ── ESLint (config embarquée, best-effort sur JS) ─────────────
@@ -227,6 +242,7 @@ export const RUNNERS: Runner[] = [
   runTrivy,
   runOsv,
   runNpmAudit,
+  runDepcheck,
   runEslint,
   runJscpd,
   runDependencyCruiser,

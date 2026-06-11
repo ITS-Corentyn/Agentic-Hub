@@ -52,6 +52,9 @@ model Repository {
   private       Boolean  @default(false)
   description   String?
   lastAuditAt   DateTime?
+  auditSchedule String   @default("off") // off | daily | weekly
+  policy        Json? // { minScore, maxCritical, maxHigh } — surcharge la politique par défaut
+  scoringOverride Json? // pondérations de scoring spécifiques au repo (sinon globales)
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
 
@@ -68,6 +71,8 @@ model Audit {
   trigger      AuditTrigger @default(manual)
   commitSha    String?
   globalScore  Float?
+  gatePassed   Boolean?
+  gateReasons  String[]     @default([])
   loc          Int          @default(0)
   files        Int          @default(0)
   languages    String[]     @default([])
@@ -152,6 +157,8 @@ model ScanArtifact {
 model Setting {
   id        Int      @id @default(1)
   scoring   Json?
+  policy    Json? // politique par défaut (gate) appliquée aux repos sans surcharge
+  notify    Json? // { webhookUrl, mode } pour notifications Slack/Teams/Discord
   updatedAt DateTime @updatedAt
 }
 

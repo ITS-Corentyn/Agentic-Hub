@@ -17,10 +17,22 @@ const error = ref('');
 const activeDim = ref<Dimension | 'all'>('all');
 const toast = ref('');
 const depBusy = ref(false);
+const schedule = ref('off');
 
 function flash(msg: string) {
   toast.value = msg;
   setTimeout(() => (toast.value = ''), 5000);
+}
+
+async function onSchedule(e: Event) {
+  const v = (e.target as HTMLSelectElement).value;
+  schedule.value = v;
+  try {
+    await api.setSchedule(props.id, v);
+    flash(v === 'off' ? 'Planification désactivée' : `Audit planifié : ${v}`);
+  } catch (err) {
+    flash((err as Error).message);
+  }
 }
 
 async function onTriage(findingId: string, status: string) {
@@ -73,6 +85,7 @@ async function load() {
       return;
     }
     audit.value = await api.getAudit(lastAudit.id);
+    schedule.value = audit.value.repository.auditSchedule ?? 'off';
     findings.value = await api.getFindings(lastAudit.id);
     try {
       trend.value = (await api.getTrend(props.id)).map((p) => ({ date: p.date, score: p.score }));
@@ -104,7 +117,18 @@ onMounted(load);
     <!-- En-tête -->
     <div class="card flex flex-wrap items-center justify-between gap-6 p-6">
       <div>
-        <h1 class="text-2xl font-bold">{{ audit.repository.fullName }}</h1>
+        <div class="flex flex-wrap items-center gap-2">
+          <h1 class="text-2xl font-bold">{{ audit.repository.fullName }}</h1>
+          <span
+            v-if="audit.gatePassed === true"
+            class="rounded-full border border-emerald-500/40 bg-emerald-500/10 px-2 py-0.5 text-xs text-emerald-300"
+          >🚦 Gate OK</span>
+          <span
+            v-else-if="audit.gatePassed === false"
+            class="rounded-full border border-red-500/40 bg-red-500/10 px-2 py-0.5 text-xs text-red-300"
+            :title="(audit.gateReasons || []).join(' ; ')"
+          >🚦 Gate KO</span>
+        </div>
         <p class="text-sm text-slate-400">
           {{ audit.loc.toLocaleString('fr-FR') }} lignes · {{ audit.files }} fichiers ·
           {{ audit.languages.join(', ') || '—' }}
@@ -118,6 +142,16 @@ onMounted(load);
           <button class="btn-ghost" :disabled="depBusy" @click="onDependabotPr">
             {{ depBusy ? '…' : '🤖 Activer Dependabot (PR)' }}
           </button>
+          <select
+            :value="schedule"
+            class="rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-sm text-slate-200 outline-none focus:border-brand-500"
+            title="Planifier des audits automatiques"
+            @change="onSchedule"
+          >
+            <option value="off">⏱ Pas de planification</option>
+            <option value="daily">⏱ Audit quotidien</option>
+            <option value="weekly">⏱ Audit hebdomadaire</option>
+          </select>
         </div>
       </div>
       <ScoreGauge :score="audit.globalScore ?? 0" :size="150" label="score global" />

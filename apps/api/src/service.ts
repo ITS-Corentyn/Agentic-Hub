@@ -1,7 +1,8 @@
 import { prisma } from '@agentic-hub/db';
-import type { AuditResult } from '@agentic-hub/shared';
-import { generateReport, buildStaticSynthesis } from '@agentic-hub/audit-engine';
+import { DEFAULT_POLICY, PolicySchema, type AuditResult } from '@agentic-hub/shared';
+import { generateReport, buildStaticSynthesis, evaluateGate } from '@agentic-hub/audit-engine';
 import { generateSynthesis } from './ollama.js';
+import { notifyAuditDone } from './notify.js';
 import { sseHub } from './sse.js';
 
 /** Persiste un AuditResult (findings + dimensions + métriques) et passe en "analyzing". */
@@ -126,16 +127,49 @@ export async function runSynthesisAndFinish(auditId: string): Promise<void> {
     },
   });
 
+  // Gate qualité : politique du repo, sinon politique par défaut globale.
+  const repo = await prisma.repository.findFirst({ where: { audits: { some: { id: auditId } } } });
+  const setting = await prisma.setting.findUnique({ where: { id: 1 } });
+  const policy = PolicySchema.safeParse(repo?.policy ?? setting?.policy);
+  const gate = evaluateGate(result, policy.success ? policy.data : DEFAULT_POLICY);
+
+  // Score de l'audit précédent (pour notification "score-drop").
+  const prev = await prisma.audit.findFirst({
+    where: { repositoryId: repo?.id, status: 'done', id: { not: auditId } },
+    orderBy: { createdAt: 'desc' },
+    select: { globalScore: true },
+  });
+
   const audit = await prisma.audit.update({
     where: { id: auditId },
-    data: { status: 'done', finishedAt: new Date() },
+    data: {
+      status: 'done',
+      finishedAt: new Date(),
+      gatePassed: gate.passed,
+      gateReasons: gate.reasons,
+    },
   });
   await prisma.repository.update({
     where: { id: audit.repositoryId },
     data: { lastAuditAt: new Date() },
   });
 
-  sseHub.publish({ type: 'done', auditId, status: 'done', message: 'Audit terminé', progress: 100 });
+  if (repo) {
+    await notifyAuditDone({
+      result,
+      gate,
+      previousScore: prev?.globalScore ?? null,
+      repoFullName: repo.fullName,
+    }).catch(() => {});
+  }
+
+  sseHub.publish({
+    type: 'done',
+    auditId,
+    status: 'done',
+    message: gate.passed ? 'Audit terminé · Gate OK' : 'Audit terminé · Gate KO',
+    progress: 100,
+  });
 }
 
 /** Génère le rapport Markdown complet d'un audit depuis la base. */

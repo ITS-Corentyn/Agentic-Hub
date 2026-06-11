@@ -66,6 +66,7 @@ export const TOOLS = [
   'madge',
   'lighthouse',
   'npm-audit',
+  'depcheck',
   'engine', // findings synthétiques produits par le moteur (ex: dependabot manquant)
 ] as const;
 export const ToolSchema = z.enum(TOOLS);
@@ -205,6 +206,39 @@ export type Synthesis = z.infer<typeof SynthesisSchema>;
 
 export const AuditTriggerSchema = z.enum(['manual', 'schedule', 'ci']);
 export type AuditTrigger = z.infer<typeof AuditTriggerSchema>;
+
+// ──────────────────────────────────────────────────────────────
+// Gouvernance : politique de qualité (gate) & planning
+// ──────────────────────────────────────────────────────────────
+
+export const PolicySchema = z.object({
+  /** Score global minimum requis (sinon gate KO). */
+  minScore: z.number().min(0).max(100).nullable().default(null),
+  /** Nombre max de findings critiques toléré. */
+  maxCritical: z.number().int().nonnegative().nullable().default(0),
+  /** Nombre max de findings élevés toléré. */
+  maxHigh: z.number().int().nonnegative().nullable().default(null),
+});
+export type Policy = z.infer<typeof PolicySchema>;
+
+export const DEFAULT_POLICY: Policy = { minScore: null, maxCritical: 0, maxHigh: null };
+
+export interface GateResult {
+  passed: boolean;
+  reasons: string[];
+}
+
+export const AUDIT_SCHEDULES = ['off', 'daily', 'weekly'] as const;
+export const AuditScheduleSchema = z.enum(AUDIT_SCHEDULES);
+export type AuditSchedule = z.infer<typeof AuditScheduleSchema>;
+
+// Notifications (webhook compatible Slack/Mattermost/Discord + déclencheur).
+export const NOTIFY_MODES = ['off', 'always', 'critical', 'score-drop'] as const;
+export const NotifyConfigSchema = z.object({
+  webhookUrl: z.string().default(''),
+  mode: z.enum(NOTIFY_MODES).default('off'),
+});
+export type NotifyConfig = z.infer<typeof NotifyConfigSchema>;
 
 export interface SseEvent {
   type: 'status' | 'log' | 'done' | 'error';

@@ -1,3 +1,5 @@
+import { existsSync, readFileSync } from 'node:fs';
+import { join } from 'node:path';
 import {
   DEFAULT_SCORING,
   type AuditResult,
@@ -42,10 +44,12 @@ export function runAudit(root: string, opts: RunAuditOptions = {}): RunAuditResu
   const dependabot = analyzeDependabot(root);
   opts.onProgress?.('engine');
 
+  // Suppressions repo-local : ruleIds à ignorer (.agentic-hub/suppress.txt, 1 par ligne).
+  const suppressed = loadSuppressions(root);
   const allFindings: Finding[] = dedupeFindings([
     ...scannerOutputs.flatMap((s) => s.findings),
     ...dependabot.findings,
-  ]);
+  ]).filter((f) => !suppressed.has(f.ruleId));
 
   const dimensions = scoreDimensions(allFindings, metrics.loc, scoring);
   const globalScore = scoreGlobal(dimensions, scoring);
@@ -75,4 +79,19 @@ export function runAudit(root: string, opts: RunAuditOptions = {}): RunAuditResu
     : [];
 
   return { result, artifacts, proposedDependabot: dependabot.proposedConfig };
+}
+
+/** Charge les ruleIds à supprimer depuis `.agentic-hub/suppress.txt` (commentaires `#` ignorés). */
+function loadSuppressions(root: string): Set<string> {
+  const file = join(root, '.agentic-hub', 'suppress.txt');
+  if (!existsSync(file)) return new Set();
+  try {
+    const lines = readFileSync(file, 'utf8')
+      .split('\n')
+      .map((l) => l.trim())
+      .filter((l) => l && !l.startsWith('#'));
+    return new Set(lines);
+  } catch {
+    return new Set();
+  }
 }

@@ -2,7 +2,11 @@ import type { FastifyInstance } from 'fastify';
 import { prisma } from '@agentic-hub/db';
 import {
   AuditResultSchema,
+  AuditScheduleSchema,
+  DEFAULT_POLICY,
   DEFAULT_SCORING,
+  NotifyConfigSchema,
+  PolicySchema,
   ScoringConfigSchema,
   type SseEvent,
 } from '@agentic-hub/shared';
@@ -40,7 +44,7 @@ export async function registerRoutes(app: FastifyInstance) {
         audits: {
           orderBy: { createdAt: 'desc' },
           take: 1,
-          select: { id: true, status: true, globalScore: true, createdAt: true },
+          select: { id: true, status: true, globalScore: true, gatePassed: true, createdAt: true },
         },
       },
     });
@@ -250,20 +254,95 @@ export async function registerRoutes(app: FastifyInstance) {
     return reply.code(202).send({ ok: true });
   });
 
-  // ── Settings (scoring) ──────────────────────────────────────
+  // ── Gouvernance par repo : planning / politique / scoring ───
+  app.put('/api/repositories/:id/schedule', async (req, reply) => {
+    const { id } = req.params as { id: string };
+    const parsed = AuditScheduleSchema.safeParse((req.body as any)?.schedule);
+    if (!parsed.success) return reply.code(400).send({ error: 'Planning invalide (off|daily|weekly)' });
+    try {
+      await prisma.repository.update({ where: { id }, data: { auditSchedule: parsed.data } });
+      return { auditSchedule: parsed.data };
+    } catch {
+      return reply.code(404).send({ error: 'Repository introuvable' });
+    }
+  });
+
+  app.put('/api/repositories/:id/policy', async (req, reply) => {
+    const { id } = req.params as { id: string };
+    const body = (req.body as any)?.policy;
+    // null => repasse sur la politique par défaut globale.
+    if (body === null) {
+      try {
+        await prisma.repository.update({ where: { id }, data: { policy: undefined } });
+        return { policy: null };
+      } catch {
+        return reply.code(404).send({ error: 'Repository introuvable' });
+      }
+    }
+    const parsed = PolicySchema.safeParse(body);
+    if (!parsed.success) return reply.code(400).send({ error: 'Politique invalide' });
+    try {
+      await prisma.repository.update({ where: { id }, data: { policy: parsed.data } });
+      return { policy: parsed.data };
+    } catch {
+      return reply.code(404).send({ error: 'Repository introuvable' });
+    }
+  });
+
+  app.put('/api/repositories/:id/scoring', async (req, reply) => {
+    const { id } = req.params as { id: string };
+    const body = (req.body as any)?.scoring;
+    if (body === null) {
+      try {
+        await prisma.repository.update({ where: { id }, data: { scoringOverride: undefined } });
+        return { scoring: null };
+      } catch {
+        return reply.code(404).send({ error: 'Repository introuvable' });
+      }
+    }
+    const parsed = ScoringConfigSchema.safeParse(body);
+    if (!parsed.success) return reply.code(400).send({ error: 'Scoring invalide' });
+    try {
+      await prisma.repository.update({ where: { id }, data: { scoringOverride: parsed.data } });
+      return { scoring: parsed.data };
+    } catch {
+      return reply.code(404).send({ error: 'Repository introuvable' });
+    }
+  });
+
+  // ── Settings (scoring + politique par défaut + notifications) ─
   app.get('/api/settings', async () => {
     const s = await prisma.setting.findUnique({ where: { id: 1 } });
-    return { scoring: s?.scoring ?? DEFAULT_SCORING };
+    return {
+      scoring: s?.scoring ?? DEFAULT_SCORING,
+      policy: s?.policy ?? DEFAULT_POLICY,
+      notify: s?.notify ?? { webhookUrl: '', mode: 'off' },
+    };
   });
 
   app.put('/api/settings', async (req, reply) => {
-    const parsed = ScoringConfigSchema.safeParse((req.body as any)?.scoring);
-    if (!parsed.success) return reply.code(400).send({ error: 'Config de scoring invalide' });
+    const body = (req.body ?? {}) as any;
+    const data: Record<string, unknown> = {};
+    if (body.scoring !== undefined) {
+      const p = ScoringConfigSchema.safeParse(body.scoring);
+      if (!p.success) return reply.code(400).send({ error: 'Config de scoring invalide' });
+      data.scoring = p.data;
+    }
+    if (body.policy !== undefined) {
+      const p = PolicySchema.safeParse(body.policy);
+      if (!p.success) return reply.code(400).send({ error: 'Politique invalide' });
+      data.policy = p.data;
+    }
+    if (body.notify !== undefined) {
+      const p = NotifyConfigSchema.safeParse(body.notify);
+      if (!p.success) return reply.code(400).send({ error: 'Config de notification invalide' });
+      data.notify = p.data;
+    }
     const s = await prisma.setting.upsert({
       where: { id: 1 },
-      update: { scoring: parsed.data },
-      create: { id: 1, scoring: parsed.data },
+      update: data,
+      create: { id: 1, ...data },
     });
-    return { scoring: s.scoring };
+    return { scoring: s.scoring, policy: s.policy, notify: s.notify };
   });
 }

@@ -15,14 +15,22 @@ const DIMS: Dimension[] = [
 
 const weights = ref<Record<string, number>>({});
 const locBaseline = ref(2000);
+const policy = ref<{ minScore: number | null; maxCritical: number | null; maxHigh: number | null }>({
+  minScore: null,
+  maxCritical: 0,
+  maxHigh: null,
+});
+const notify = ref<{ webhookUrl: string; mode: string }>({ webhookUrl: '', mode: 'off' });
 const saved = ref(false);
 const error = ref('');
 
 async function load() {
   try {
-    const { scoring } = await api.getSettings();
-    weights.value = { ...scoring.weights };
-    locBaseline.value = scoring.locBaseline ?? 2000;
+    const s = await api.getSettings();
+    weights.value = { ...s.scoring.weights };
+    locBaseline.value = s.scoring.locBaseline ?? 2000;
+    if (s.policy) policy.value = { minScore: s.policy.minScore ?? null, maxCritical: s.policy.maxCritical ?? 0, maxHigh: s.policy.maxHigh ?? null };
+    if (s.notify) notify.value = { webhookUrl: s.notify.webhookUrl ?? '', mode: s.notify.mode ?? 'off' };
   } catch (e) {
     error.value = (e as Error).message;
   }
@@ -32,7 +40,11 @@ async function save() {
   saved.value = false;
   error.value = '';
   try {
-    await api.saveSettings({ weights: weights.value, locBaseline: Number(locBaseline.value) });
+    await api.saveSettings({
+      scoring: { weights: weights.value, locBaseline: Number(locBaseline.value) },
+      policy: policy.value,
+      notify: notify.value,
+    });
     saved.value = true;
     setTimeout(() => (saved.value = false), 2500);
   } catch (e) {
@@ -44,42 +56,74 @@ onMounted(load);
 </script>
 
 <template>
-  <section class="mx-auto max-w-2xl">
+  <section class="mx-auto max-w-2xl space-y-6">
     <h1 class="text-2xl font-bold">Réglages</h1>
-    <p class="mb-6 text-sm text-slate-400">Pondération des dimensions dans le score global (relatif).</p>
 
+    <!-- Politique qualité (gate par défaut) -->
     <div class="card space-y-4 p-6">
-      <div v-for="d in DIMS" :key="d" class="flex items-center gap-4">
-        <label class="w-32 text-sm">{{ DIMENSION_LABELS[d] }}</label>
-        <input
-          v-model.number="weights[d]"
-          type="range"
-          min="0"
-          max="40"
-          class="flex-1 accent-brand-500"
-        />
-        <span class="w-10 text-right text-sm tabular-nums">{{ weights[d] }}</span>
+      <div>
+        <h2 class="text-sm font-semibold">🚦 Politique qualité (gate par défaut)</h2>
+        <p class="text-xs text-slate-400">Seuils qui font passer un audit en « KO » (surchargés par repo).</p>
       </div>
-
-      <div class="flex items-center gap-4 border-t border-white/5 pt-4">
-        <label class="w-32 text-sm">Baseline LOC</label>
-        <input
-          v-model.number="locBaseline"
-          type="number"
-          class="flex-1 rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-sm outline-none focus:border-brand-500"
-        />
+      <div class="flex items-center gap-4">
+        <label class="w-40 text-sm">Score minimum</label>
+        <input v-model.number="policy.minScore" type="number" min="0" max="100" placeholder="aucun"
+          class="w-28 rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-sm outline-none focus:border-brand-500" />
       </div>
-
-      <div class="flex items-center gap-3 pt-2">
-        <button class="btn-primary" @click="save">Enregistrer</button>
-        <span v-if="saved" class="text-sm text-emerald-400">✔ Enregistré</span>
-        <span v-if="error" class="text-sm text-red-400">{{ error }}</span>
+      <div class="flex items-center gap-4">
+        <label class="w-40 text-sm">Max. critiques</label>
+        <input v-model.number="policy.maxCritical" type="number" min="0"
+          class="w-28 rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-sm outline-none focus:border-brand-500" />
+      </div>
+      <div class="flex items-center gap-4">
+        <label class="w-40 text-sm">Max. élevés</label>
+        <input v-model.number="policy.maxHigh" type="number" min="0" placeholder="aucun"
+          class="w-28 rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-sm outline-none focus:border-brand-500" />
       </div>
     </div>
 
-    <p class="mt-4 text-xs text-slate-500">
-      Le scoring est déterministe : <code>score = 100 − pénalités pondérées par sévérité</code>,
-      normalisé par la taille du code (baseline LOC). Aucune clé API requise.
-    </p>
+    <!-- Notifications -->
+    <div class="card space-y-4 p-6">
+      <div>
+        <h2 class="text-sm font-semibold">🔔 Notifications</h2>
+        <p class="text-xs text-slate-400">Webhook compatible Slack / Mattermost / Discord.</p>
+      </div>
+      <div class="flex items-center gap-4">
+        <label class="w-40 text-sm">Déclencheur</label>
+        <select v-model="notify.mode"
+          class="rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-sm outline-none focus:border-brand-500">
+          <option value="off">Désactivé</option>
+          <option value="always">À chaque audit</option>
+          <option value="critical">Si critique ou gate KO</option>
+          <option value="score-drop">Si le score baisse ou gate KO</option>
+        </select>
+      </div>
+      <div class="flex items-center gap-4">
+        <label class="w-40 text-sm">URL du webhook</label>
+        <input v-model="notify.webhookUrl" type="url" placeholder="https://hooks.slack.com/…"
+          class="flex-1 rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-sm outline-none focus:border-brand-500" />
+      </div>
+    </div>
+
+    <!-- Pondérations de scoring -->
+    <div class="card space-y-4 p-6">
+      <h2 class="text-sm font-semibold">⚖️ Pondération des dimensions</h2>
+      <div v-for="d in DIMS" :key="d" class="flex items-center gap-4">
+        <label class="w-32 text-sm">{{ DIMENSION_LABELS[d] }}</label>
+        <input v-model.number="weights[d]" type="range" min="0" max="40" class="flex-1 accent-brand-500" />
+        <span class="w-10 text-right text-sm tabular-nums">{{ weights[d] }}</span>
+      </div>
+      <div class="flex items-center gap-4 border-t border-white/5 pt-4">
+        <label class="w-32 text-sm">Baseline LOC</label>
+        <input v-model.number="locBaseline" type="number"
+          class="flex-1 rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-sm outline-none focus:border-brand-500" />
+      </div>
+    </div>
+
+    <div class="flex items-center gap-3">
+      <button class="btn-primary" @click="save">Enregistrer</button>
+      <span v-if="saved" class="text-sm text-emerald-400">✔ Enregistré</span>
+      <span v-if="error" class="text-sm text-red-400">{{ error }}</span>
+    </div>
   </section>
 </template>

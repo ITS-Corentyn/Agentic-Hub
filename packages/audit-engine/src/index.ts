@@ -1,4 +1,5 @@
 export * from './engine.js';
+export * from './gate.js';
 export * from './scoring.js';
 export * from './report.js';
 export * from './synthesis.js';

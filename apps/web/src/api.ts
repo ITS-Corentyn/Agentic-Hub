@@ -23,7 +23,14 @@ export interface RepoSummary {
   language: string | null;
   description: string | null;
   lastAuditAt: string | null;
-  audits: { id: string; status: AuditStatus; globalScore: number | null; createdAt: string }[];
+  auditSchedule?: 'off' | 'daily' | 'weekly';
+  audits: {
+    id: string;
+    status: AuditStatus;
+    globalScore: number | null;
+    gatePassed?: boolean | null;
+    createdAt: string;
+  }[];
 }
 
 export interface DimensionResult {
@@ -68,6 +75,8 @@ export interface AuditDetail {
   toolsRun: string[];
   toolsSkipped: string[];
   commitSha: string | null;
+  gatePassed?: boolean | null;
+  gateReasons?: string[];
   createdAt: string;
   finishedAt: string | null;
   error: string | null;
@@ -156,9 +165,23 @@ export const api = {
   createIssue: (findingId: string) =>
     http<{ url: string }>(`/api/findings/${findingId}/issue`, { method: 'POST', body: '{}' }),
 
-  getSettings: () => http<{ scoring: any }>('/api/settings'),
-  saveSettings: (scoring: any) =>
-    http<{ scoring: any }>('/api/settings', { method: 'PUT', body: JSON.stringify({ scoring }) }),
+  getSettings: () =>
+    http<{ scoring: any; policy: any; notify: { webhookUrl: string; mode: string } }>('/api/settings'),
+  saveSettings: (data: { scoring?: any; policy?: any; notify?: any }) =>
+    http<{ scoring: any; policy: any; notify: any }>('/api/settings', {
+      method: 'PUT',
+      body: JSON.stringify(data),
+    }),
+  setSchedule: (repoId: string, schedule: string) =>
+    http<{ auditSchedule: string }>(`/api/repositories/${repoId}/schedule`, {
+      method: 'PUT',
+      body: JSON.stringify({ schedule }),
+    }),
+  setPolicy: (repoId: string, policy: any) =>
+    http<{ policy: any }>(`/api/repositories/${repoId}/policy`, {
+      method: 'PUT',
+      body: JSON.stringify({ policy }),
+    }),
   getDependabot: (repoId: string) => http<{ yaml: string }>(`/api/repositories/${repoId}/dependabot`),
   streamUrl: (id: string) => `${BASE}/api/audits/${id}/stream`,
 };

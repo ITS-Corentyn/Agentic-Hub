@@ -24,8 +24,8 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     && chmod +x /usr/local/bin/osv-scanner \
     && apt-get clean && rm -rf /var/lib/apt/lists/*
 
-# Outils Node globaux (qualité / architecture)
-RUN npm install -g jscpd@4 dependency-cruiser@16 madge@8
+# Outils Node globaux (qualité / architecture / dépendances)
+RUN npm install -g jscpd@4 dependency-cruiser@16 madge@8 depcheck@1
 
 # Toolbox ESLint autonome (TS/Vue)
 COPY scanners/eslint /opt/eslint-audit

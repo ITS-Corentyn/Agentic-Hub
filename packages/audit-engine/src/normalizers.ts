@@ -138,6 +138,67 @@ export function normalizeTrivy(raw: any, root: string): Finding[] {
         }),
       );
     }
+    for (const l of r.Licenses ?? []) {
+      out.push(
+        makeFinding({
+          dimension: 'dependencies',
+          tool: 'trivy',
+          severity: TRIVY_SEVERITY[(l.Severity ?? 'LOW').toUpperCase()] ?? 'low',
+          ruleId: `license-${l.Name ?? 'unknown'}`,
+          title: `Licence ${l.Name ?? 'inconnue'} — ${l.PkgName ?? l.FilePath ?? ''}`,
+          description: `Licence ${l.Name ?? 'inconnue'} (catégorie ${l.Category ?? 'n/a'}) détectée${
+            l.PkgName ? ` sur ${l.PkgName}` : ''
+          }.`,
+          filePath: rel(root, l.FilePath ?? target),
+          line: null,
+          remediation:
+            "Vérifier la compatibilité de cette licence avec ton usage (copyleft/commercial) ; remplacer la dépendance si nécessaire.",
+          reference: l.Link ?? null,
+        }),
+      );
+    }
+  }
+  return out;
+}
+
+// ──────────────────────────────────────────────────────────────
+// depcheck — dépendances inutilisées / manquantes (deps + qualité)
+// ──────────────────────────────────────────────────────────────
+export function normalizeDepcheck(raw: any): Finding[] {
+  const out: Finding[] = [];
+  const unused: string[] = [...(raw?.dependencies ?? []), ...(raw?.devDependencies ?? [])];
+  for (const dep of unused) {
+    out.push(
+      makeFinding({
+        dimension: 'dependencies',
+        tool: 'depcheck',
+        severity: 'low',
+        ruleId: 'unused-dependency',
+        title: `Dépendance inutilisée : ${dep}`,
+        description: `La dépendance \`${dep}\` est déclarée mais ne semble pas utilisée.`,
+        filePath: 'package.json',
+        line: null,
+        remediation: `Retirer \`${dep}\` du package.json (allège le bundle et la surface d'attaque).`,
+        reference: null,
+      }),
+    );
+  }
+  const missing = raw?.missing ?? {};
+  for (const dep of Object.keys(missing)) {
+    out.push(
+      makeFinding({
+        dimension: 'dependencies',
+        tool: 'depcheck',
+        severity: 'medium',
+        ruleId: 'missing-dependency',
+        title: `Dépendance manquante : ${dep}`,
+        description: `\`${dep}\` est importée mais absente du package.json.`,
+        filePath: 'package.json',
+        line: null,
+        remediation: `Ajouter \`${dep}\` aux dépendances déclarées.`,
+        reference: null,
+      }),
+    );
   }
   return out;
 }

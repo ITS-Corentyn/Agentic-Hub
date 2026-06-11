@@ -133,6 +133,23 @@ les scanners et POST les findings sur `/api/ingest`. La synthèse Ollama tourne 
 `score_global = moyenne pondérée` (sécurité 30 %, deps 15 %, qualité 15 %, archi 15 %,
 backend 10 %, frontend 8 %, perf 7 %). Pondérations ajustables dans **Réglages**.
 
+## 🚦 Gouvernance & gate CI
+
+- **Politique qualité** : seuils de score / critiques / élevés, globaux (Réglages) ou
+  **par repo** (rapport du repo). Chaque audit calcule un **Gate OK/KO**.
+- **Gate en CI** : le moteur peut **faire échouer un build** —
+  `node packages/audit-engine/dist/cli.js scan <dir> --fail-on-score 80 --fail-on-severity high`
+  (sort en code 2 si dépassé).
+- **Conventions repo audité** (optionnelles) :
+  - `.agentic-hub/semgrep/` → règles Semgrep **custom** ajoutées au scan ;
+  - `.agentic-hub/suppress.txt` → `ruleId` à ignorer (1 par ligne, `#` = commentaire).
+
+## 🔁 Monitoring continu
+
+- **Audits planifiés** par repo (quotidien / hebdo) — sélecteur sur le rapport.
+- **Notifications** (Réglages) vers un webhook **Slack / Mattermost / Discord** :
+  à chaque audit, sur critique/gate KO, ou sur baisse de score.
+
 ## 📄 Licence
 
 MIT — © 2026 ITS-Corentyn
