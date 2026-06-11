@@ -31,11 +31,22 @@ const areaPath = computed(() => {
   return `${linePath.value} L ${last.x.toFixed(1)} ${H.value - pad} L ${first.x.toFixed(1)} ${H.value - pad} Z`;
 });
 const lastColor = computed(() => scoreColor(props.points.at(-1)?.score ?? 0));
+
+// Description textuelle pour lecteurs d'écran (le SVG seul est inaccessible).
+const ariaLabel = computed(() => {
+  const pts = props.points;
+  if (pts.length < 2) return 'Graphique de tendance du score (données insuffisantes)';
+  const first = Math.round(pts[0]!.score);
+  const last = Math.round(pts.at(-1)!.score);
+  const trend = last > first ? 'en hausse' : last < first ? 'en baisse' : 'stable';
+  return `Évolution du score sur ${pts.length} audits : de ${first} à ${last} sur 100 (${trend}).`;
+});
 </script>
 
 <template>
   <div>
-    <svg v-if="coords.length > 1" :viewBox="`0 0 ${W} ${H}`" class="w-full" :style="{ height: `${H}px` }">
+    <svg v-if="coords.length > 1" :viewBox="`0 0 ${W} ${H}`" class="w-full" :style="{ height: `${H}px` }" role="img" :aria-label="ariaLabel">
+      <title>{{ ariaLabel }}</title>
       <defs>
         <linearGradient :id="'tg'" x1="0" y1="0" x2="0" y2="1">
           <stop offset="0%" :stop-color="lastColor" stop-opacity="0.35" />

@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue';
+import { CircleCheck, ExternalLink, ChevronsDownUp, ChevronsUpDown } from '@lucide/vue';
 import type { Finding, Severity } from '../api';
 import { SEVERITY_LABELS } from '../lib/ui';
 import { auth } from '../lib/auth';
@@ -20,11 +21,13 @@ function ghLink(f: Finding): string | null {
   return `${props.repoUrl}/blob/${ref}/${f.filePath}${f.line ? `#L${f.line}` : ''}`;
 }
 
-async function onIssue(id: string) {
-  busyId.value = id;
-  emit('issue', id);
+async function onIssue(f: Finding) {
+  // Action sortante : crée une issue publique sur GitHub → on confirme d'abord.
+  if (!window.confirm(`Créer une issue GitHub pour « ${f.title} » ?`)) return;
+  busyId.value = f.id;
+  emit('issue', f.id);
   // le parent remet busy a null via re-render ; on libere par securite
-  setTimeout(() => (busyId.value === id ? (busyId.value = null) : null), 4000);
+  setTimeout(() => (busyId.value === f.id ? (busyId.value = null) : null), 4000);
 }
 
 const ORDER: Severity[] = ['critical', 'high', 'medium', 'low', 'info'];
@@ -43,12 +46,24 @@ function toggle(id: string) {
   s.has(id) ? s.delete(id) : s.add(id);
   expanded.value = s;
 }
+// Déplie / replie tous les findings actuellement rendus (triage de masse).
+function expandAll() {
+  expanded.value = new Set(visible.value.map((f) => f.id));
+}
+function collapseAll() {
+  expanded.value = new Set();
+}
+const allExpanded = computed(
+  () => visible.value.length > 0 && visible.value.every((f) => expanded.value.has(f.id)),
+);
 </script>
 
 <template>
   <div>
-    <div class="mb-3 flex flex-wrap gap-2">
+    <div class="mb-3 flex flex-wrap items-center gap-2">
       <button
+        type="button"
+        :aria-pressed="sevFilter === 'all'"
         :class="['rounded-full border px-3 py-1 text-xs', sevFilter === 'all' ? 'border-brand-500 text-white' : 'border-white/10 text-slate-400']"
         @click="sevFilter = 'all'"
       >
@@ -57,10 +72,23 @@ function toggle(id: string) {
       <button
         v-for="s in ORDER"
         :key="s"
+        type="button"
+        :aria-pressed="sevFilter === s"
         :class="['rounded-full border px-3 py-1 text-xs', sevFilter === s ? 'border-brand-500 text-white' : 'border-white/10 text-slate-400']"
         @click="sevFilter = s"
       >
         {{ SEVERITY_LABELS[s] }} ({{ findings.filter((f) => f.severity === s).length }})
+      </button>
+
+      <!-- Déplier / replier en masse (utile pour trier beaucoup de findings). -->
+      <button
+        v-if="visible.length"
+        type="button"
+        class="ml-auto inline-flex items-center gap-1.5 rounded-full border border-white/10 px-3 py-1 text-xs text-slate-300 hover:bg-white/5"
+        @click="allExpanded ? collapseAll() : expandAll()"
+      >
+        <component :is="allExpanded ? ChevronsDownUp : ChevronsUpDown" class="h-3.5 w-3.5" />
+        {{ allExpanded ? 'Tout replier' : 'Tout déplier' }}
       </button>
     </div>
 
@@ -71,6 +99,9 @@ function toggle(id: string) {
     <ul class="space-y-2">
       <li v-for="f in visible" :key="f.id" class="card overflow-hidden">
         <button
+          type="button"
+          :aria-expanded="expanded.has(f.id)"
+          :aria-controls="`finding-${f.id}`"
           class="flex w-full items-center gap-3 p-3 text-left"
           :class="f.status === 'ignored' ? 'opacity-50' : ''"
           @click="toggle(f.id)"
@@ -84,19 +115,19 @@ function toggle(id: string) {
           <span class="rounded bg-white/5 px-2 py-0.5 text-[10px] text-slate-400">{{ f.tool }}</span>
         </button>
 
-        <div v-if="expanded.has(f.id)" class="border-t border-white/5 bg-black/20 p-4 text-sm">
+        <div v-if="expanded.has(f.id)" :id="`finding-${f.id}`" class="border-t border-white/5 bg-black/20 p-4 text-sm">
           <p v-if="f.description" class="mb-2 text-slate-300">{{ f.description }}</p>
           <p v-if="f.ruleId" class="mb-2 text-xs text-slate-500">Règle : <code>{{ f.ruleId }}</code></p>
           <div class="rounded-lg border border-emerald-500/20 bg-emerald-500/5 p-3">
-            <p class="mb-1 text-xs font-semibold text-emerald-300">✅ Correctif recommandé</p>
+            <p class="mb-1 flex items-center gap-1.5 text-xs font-semibold text-emerald-300"><CircleCheck class="h-3.5 w-3.5" /> Correctif recommandé</p>
             <p class="text-sm text-slate-200">{{ f.remediation || 'Voir la référence.' }}</p>
           </div>
           <div class="mt-2 flex flex-wrap gap-3">
-            <a v-if="ghLink(f)" :href="ghLink(f)!" target="_blank" class="text-xs text-brand-400 hover:underline">
-              Voir sur GitHub ↗ <code class="text-slate-400">{{ f.filePath }}{{ f.line ? `:${f.line}` : '' }}</code>
+            <a v-if="ghLink(f)" :href="ghLink(f)!" target="_blank" rel="noopener noreferrer" class="inline-flex items-center gap-1 text-xs text-brand-400 hover:underline">
+              Voir sur GitHub <ExternalLink class="h-3 w-3" /> <code class="text-slate-400">{{ f.filePath }}{{ f.line ? `:${f.line}` : '' }}</code>
             </a>
-            <a v-if="f.reference" :href="f.reference" target="_blank" class="text-xs text-brand-400 hover:underline">
-              Référence ↗
+            <a v-if="f.reference" :href="f.reference" target="_blank" rel="noopener noreferrer" class="inline-flex items-center gap-1 text-xs text-brand-400 hover:underline">
+              Référence <ExternalLink class="h-3 w-3" />
             </a>
           </div>
 
@@ -116,9 +147,10 @@ function toggle(id: string) {
               Rouvrir
             </button>
             <button
+              type="button"
               class="rounded-md border border-brand-500/40 px-2.5 py-1 text-xs text-brand-300 hover:bg-brand-500/10 disabled:opacity-50"
               :disabled="busyId === f.id"
-              @click="onIssue(f.id)"
+              @click="onIssue(f)"
             >
               {{ busyId === f.id ? '...' : 'Créer une issue GitHub' }}
             </button>

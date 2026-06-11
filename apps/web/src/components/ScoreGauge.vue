@@ -26,8 +26,14 @@ watch(
 </script>
 
 <template>
-  <div class="relative grid place-items-center" :style="{ width: `${size}px`, height: `${size}px` }">
-    <svg :width="size" :height="size" class="-rotate-90">
+  <div
+    class="relative grid place-items-center"
+    :style="{ width: `${size}px`, height: `${size}px` }"
+    role="img"
+    :aria-label="`Score ${Math.round(score)} sur 100${label ? ` (${label})` : ''}`"
+  >
+    <svg :width="size" :height="size" class="-rotate-90" aria-hidden="true">
+      <title>{{ Math.round(score) }}/100{{ label ? ` — ${label}` : '' }}</title>
       <circle
         :cx="size / 2"
         :cy="size / 2"

@@ -1,5 +1,6 @@
 import type { FastifyInstance } from 'fastify';
 import { prisma } from '@agentic-hub/db';
+import { ecosystemsForLanguage } from '@agentic-hub/audit-engine';
 import { createDependabotPr, createFilePr, createIssueFromFinding } from './github.js';
 
 // Workflow GitHub Actions de check de PR : audit + commentaire + statut bloquant.
@@ -50,18 +51,6 @@ jobs:
             await github.rest.issues.createComment({ ...context.repo, issue_number: context.issue.number, body });
 `;
 
-const LANG_TO_ECOSYSTEM: Record<string, string> = {
-  TypeScript: 'npm',
-  JavaScript: 'npm',
-  Vue: 'npm',
-  Python: 'pip',
-  Go: 'gomod',
-  Ruby: 'bundler',
-  PHP: 'composer',
-  Java: 'maven',
-  Rust: 'cargo',
-};
-
 export async function registerRemediationRoutes(app: FastifyInstance) {
   // Triage d'un finding : statut (open/fixed/ignored) + motif.
   app.patch('/api/findings/:id', async (req, reply) => {
@@ -90,9 +79,8 @@ export async function registerRemediationRoutes(app: FastifyInstance) {
     const { id } = req.params as { id: string };
     const repo = await prisma.repository.findUnique({ where: { id } });
     if (!repo) return reply.code(404).send({ error: 'Repository introuvable' });
-    const ecosystems = [...new Set([repo.language ?? 'JavaScript'].map((l) => LANG_TO_ECOSYSTEM[l] ?? 'npm'))];
     try {
-      const url = await createDependabotPr(repo.fullName, ecosystems);
+      const url = await createDependabotPr(repo.fullName, ecosystemsForLanguage(repo.language));
       return { url };
     } catch (err) {
       return reply.code(502).send({ error: `Echec de creation de la PR : ${(err as Error).message}` });

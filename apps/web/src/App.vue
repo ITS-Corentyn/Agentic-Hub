@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { onMounted, ref } from 'vue';
 import { RouterLink, RouterView } from 'vue-router';
+import { RefreshCw } from '@lucide/vue';
 import { api, type GithubStatus } from './api';
 import { auth, loadAuth } from './lib/auth';
 import { ROLE_LABELS } from './lib/ui';
@@ -85,7 +86,7 @@ onMounted(async () => {
           <RouterLink to="/search" class="rounded-lg px-3 py-2 text-slate-300 hover:bg-white/5" active-class="text-white">Recherche</RouterLink>
           <RouterLink v-if="auth.isAdmin" to="/settings" class="rounded-lg px-3 py-2 text-slate-300 hover:bg-white/5" active-class="text-white">Réglages</RouterLink>
           <RouterLink v-if="auth.isAdmin" to="/users" class="rounded-lg px-3 py-2 text-slate-300 hover:bg-white/5" active-class="text-white">Utilisateurs</RouterLink>
-          <button class="hidden rounded-lg border border-white/10 px-2 py-1 text-[11px] text-slate-400 hover:bg-white/5 sm:block" title="Palette (Ctrl/Cmd+K)" @click="palette?.show()">⌘K</button>
+          <button class="hidden rounded-lg border border-white/10 px-2 py-1 text-[11px] text-slate-400 hover:bg-white/5 sm:block" title="Palette de commandes (Ctrl/Cmd+K)" aria-label="Ouvrir la palette de commandes (Ctrl ou Cmd + K)" @click="palette?.show()">⌘K</button>
 
           <span v-if="health" class="ml-2 hidden rounded-full border border-white/10 px-3 py-1 text-[11px] text-slate-400 md:inline">
             {{ health.hybridMode ? 'Hybride' : 'Local' }} · LLM {{ health.ollama ? 'on' : 'off' }}
@@ -117,8 +118,8 @@ onMounted(async () => {
       </div>
     </header>
 
-    <div v-if="updateAvailable" class="border-b border-amber-500/20 bg-amber-500/10 px-6 py-2 text-center text-sm text-amber-200">
-      🔄 Une mise à jour est disponible — lance <code>Update-Windows.cmd</code> / <code>Update-macOS.command</code>.
+    <div v-if="updateAvailable" class="flex items-center justify-center gap-2 border-b border-amber-500/20 bg-amber-500/10 px-6 py-2 text-center text-sm text-amber-200" role="status">
+      <RefreshCw class="h-4 w-4" /> Une mise à jour est disponible — lance <code>Update-Windows.cmd</code> / <code>Update-macOS.command</code>.
     </div>
 
     <main class="mx-auto max-w-7xl px-6 py-8">

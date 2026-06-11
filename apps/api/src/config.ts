@@ -1,9 +1,17 @@
 /** Configuration centralisée, dérivée des variables d'environnement. */
 export const config = {
   port: Number(process.env.API_PORT ?? 3000),
+  /** Environnement d'exécution ('production' active les garde-fous stricts). */
+  nodeEnv: process.env.NODE_ENV ?? 'development',
   webOrigin: process.env.WEB_ORIGIN ?? 'http://localhost:5173',
   databaseUrl: process.env.DATABASE_URL ?? '',
   ingestToken: process.env.INGEST_TOKEN ?? 'change-me-ingest-token',
+  /**
+   * Secret de chiffrement au repos (tokens GitHub, mots de passe SMTP).
+   * OBLIGATOIRE en production : le démarrage échoue s'il est absent (voir server.ts).
+   * En dev, un repli est toléré (cf. crypto.ts) pour ne pas bloquer le local.
+   */
+  secretKey: process.env.AH_SECRET_KEY ?? '',
   github: {
     token: process.env.GITHUB_TOKEN ?? '',
     owner: process.env.GITHUB_OWNER ?? '',

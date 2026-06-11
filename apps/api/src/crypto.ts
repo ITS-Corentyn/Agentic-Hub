@@ -1,10 +1,12 @@
 import { createCipheriv, createDecipheriv, randomBytes, scryptSync } from 'node:crypto';
 import { config } from './config.js';
 
-// Clé dérivée d'un secret d'environnement (AH_SECRET_KEY) ou, à défaut, du
-// token d'ingestion. Définir AH_SECRET_KEY en production pour un vrai secret.
+// Clé dérivée du secret d'environnement (AH_SECRET_KEY). En production, ce secret
+// est OBLIGATOIRE et son absence empêche le démarrage (cf. assertSecretsConfigured
+// dans server.ts). En développement uniquement, on tolère un repli faible pour ne
+// pas bloquer le local.
 const KEY = scryptSync(
-  process.env.AH_SECRET_KEY || config.ingestToken || 'agentic-hub-dev',
+  config.secretKey || config.ingestToken || 'agentic-hub-dev',
   'agentic-hub-kdf-salt',
   32,
 );

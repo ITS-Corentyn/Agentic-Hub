@@ -60,6 +60,27 @@ export function analyzeDependabot(root: string): DependabotAnalysis {
   return { present, ecosystems, proposedConfig, findings };
 }
 
+/**
+ * Correspondance langage GitHub → écosystème Dependabot. Source unique de vérité,
+ * réutilisée par l'API (proposition de config + PR Dependabot).
+ */
+export const LANG_TO_ECOSYSTEM: Record<string, string> = {
+  TypeScript: 'npm',
+  JavaScript: 'npm',
+  Vue: 'npm',
+  Python: 'pip',
+  Go: 'gomod',
+  Ruby: 'bundler',
+  PHP: 'composer',
+  Java: 'maven',
+  Rust: 'cargo',
+};
+
+/** Écosystèmes Dependabot déduits d'un langage principal (repli : npm). */
+export function ecosystemsForLanguage(language: string | null | undefined): string[] {
+  return [...new Set([LANG_TO_ECOSYSTEM[language ?? 'JavaScript'] ?? 'npm'])];
+}
+
 export function buildDependabotYaml(ecosystems: string[]): string {
   const list = ecosystems.length ? ecosystems : ['npm'];
   const updates = list

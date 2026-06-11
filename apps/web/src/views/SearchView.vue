@@ -47,15 +47,16 @@ onMounted(run);
     <div class="flex flex-wrap gap-2">
       <input
         v-model="q"
+        aria-label="Rechercher dans les findings (titre, fichier, règle)"
         placeholder="Titre, fichier, règle…"
         class="flex-1 rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-sm outline-none focus:border-brand-500"
         @input="debounced"
       />
-      <select v-model="severity" class="rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-sm">
+      <select v-model="severity" aria-label="Filtrer par sévérité" class="rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-sm">
         <option value="">Toutes sévérités</option>
         <option v-for="s in SEVS" :key="s" :value="s">{{ SEVERITY_LABELS[s] }}</option>
       </select>
-      <select v-model="dimension" class="rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-sm">
+      <select v-model="dimension" aria-label="Filtrer par dimension" class="rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-sm">
         <option value="">Toutes dimensions</option>
         <option v-for="d in DIMS" :key="d" :value="d">{{ DIMENSION_LABELS[d] }}</option>
       </select>
@@ -67,8 +68,12 @@ onMounted(run);
       <li
         v-for="f in results"
         :key="f.id"
+        role="link"
+        tabindex="0"
+        :aria-label="`Voir le rapport de ${f.repo?.fullName ?? 'ce repo'} : ${f.title}`"
         class="card flex cursor-pointer items-center gap-3 p-3 hover:border-brand-500/40"
         @click="f.repo && router.push({ name: 'repo', params: { id: f.repo.repoId } })"
+        @keydown.enter="f.repo && router.push({ name: 'repo', params: { id: f.repo.repoId } })"
       >
         <SeverityBadge :severity="f.severity" />
         <span class="min-w-0 flex-1 truncate text-sm">{{ f.title }}</span>

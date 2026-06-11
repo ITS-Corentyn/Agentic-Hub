@@ -4,6 +4,7 @@ import { useRouter } from 'vue-router';
 import { api } from '../api';
 import { useSse, type SseMessage } from '../composables/useSse';
 import { statusLabel } from '../lib/ui';
+import { toast } from '../lib/toast';
 
 const props = defineProps<{ id: string }>();
 const router = useRouter();
@@ -19,8 +20,10 @@ async function cancel() {
   cancelling.value = true;
   try {
     await api.cancelAudit(props.id);
-  } catch {
-    /* ignore */
+    toast('Audit annulé', 'info');
+  } catch (e) {
+    toast((e as Error).message, 'error');
+    cancelling.value = false;
   }
 }
 

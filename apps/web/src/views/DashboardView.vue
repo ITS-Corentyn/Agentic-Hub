@@ -5,6 +5,7 @@ import gsap from 'gsap';
 import { api, type RepoSummary } from '../api';
 import { scoreColor } from '../lib/ui';
 import { auth } from '../lib/auth';
+import { toast } from '../lib/toast';
 import RepoCard from '../components/RepoCard.vue';
 import Skeleton from '../components/Skeleton.vue';
 
@@ -65,10 +66,12 @@ async function sync() {
   syncing.value = true;
   error.value = '';
   try {
-    await api.syncRepos();
+    const { synced, created } = await api.syncRepos();
     await load();
+    toast(`Synchronisation terminée : ${synced} repo(s), ${created} nouveau(x)`, 'success');
   } catch (e) {
     error.value = (e as Error).message;
+    toast((e as Error).message, 'error');
   } finally {
     syncing.value = false;
   }
@@ -109,7 +112,7 @@ onMounted(load);
       </div>
     </div>
 
-    <div class="mb-8 grid grid-cols-3 gap-4">
+    <div class="mb-8 grid grid-cols-1 gap-4 sm:grid-cols-3">
       <div class="card p-5">
         <p class="text-xs text-slate-400">Repositories</p>
         <p class="text-3xl font-bold">{{ stats.total }}</p>
