@@ -38,8 +38,24 @@ export const config = {
     model: process.env.OLLAMA_MODEL ?? 'qwen2.5-coder:7b',
     enabled: (process.env.OLLAMA_ENABLED ?? 'true') !== 'false',
   },
+  // RBAC / multi-utilisateur.
+  auth: {
+    /** Activé par défaut ; ne s'applique réellement que si l'OAuth est configuré. */
+    enabled: (process.env.AUTH_ENABLED ?? 'true') !== 'false',
+    /** Rôle attribué aux nouveaux comptes (hors 1er = admin). */
+    defaultRole: (process.env.AUTH_DEFAULT_ROLE ?? 'pending') as 'pending' | 'viewer' | 'member',
+    /** Durée de session (jours). */
+    sessionDays: Number(process.env.AUTH_SESSION_DAYS ?? 30),
+    cookieName: 'ah_session',
+    /** Cookie Secure (mettre true si servi en HTTPS). */
+    cookieSecure: process.env.AUTH_COOKIE_SECURE === 'true',
+  },
   /** true ⇒ déclenche GitHub Actions ; false ⇒ exécution locale (clone + scan). */
   get hybridMode(): boolean {
     return Boolean(this.github.workflowRepo && this.github.token);
+  },
+  /** L'auth ne s'applique que si activée ET OAuth configuré (sinon login impossible). */
+  get authActive(): boolean {
+    return this.auth.enabled && Boolean(this.github.oauth.clientId && this.github.oauth.clientSecret);
   },
 };

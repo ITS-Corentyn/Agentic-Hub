@@ -3,6 +3,7 @@ import { computed } from 'vue';
 import { useRouter } from 'vue-router';
 import type { RepoSummary } from '../api';
 import { scoreColor, statusLabel, timeAgo } from '../lib/ui';
+import { auth } from '../lib/auth';
 import ScoreGauge from './ScoreGauge.vue';
 
 const props = defineProps<{ repo: RepoSummary; busy?: boolean }>();
@@ -44,11 +45,11 @@ function open() {
     </div>
 
     <div class="flex gap-2">
-      <button class="btn-primary flex-1 justify-center" :disabled="busy" @click="emit('audit', repo.id)">
+      <button v-if="auth.canWrite" class="btn-primary flex-1 justify-center" :disabled="busy" @click="emit('audit', repo.id)">
         <span v-if="busy">…</span>
         <span v-else>Auditer</span>
       </button>
-      <button v-if="last" class="btn-ghost justify-center" @click="open">Rapport</button>
+      <button v-if="last" class="btn-ghost flex-1 justify-center" @click="open">Rapport</button>
     </div>
   </div>
 </template>

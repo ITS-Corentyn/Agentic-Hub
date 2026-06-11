@@ -4,6 +4,7 @@ import { useRouter } from 'vue-router';
 import gsap from 'gsap';
 import { api, type RepoSummary } from '../api';
 import { scoreColor } from '../lib/ui';
+import { auth } from '../lib/auth';
 import RepoCard from '../components/RepoCard.vue';
 
 const router = useRouter();
@@ -101,7 +102,7 @@ onMounted(load);
           placeholder="Rechercher…"
           class="rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-sm outline-none focus:border-brand-500"
         />
-        <button class="btn-primary" :disabled="syncing" @click="sync">
+        <button v-if="auth.canWrite" class="btn-primary" :disabled="syncing" @click="sync">
           {{ syncing ? 'Synchronisation…' : 'Synchroniser GitHub' }}
         </button>
       </div>

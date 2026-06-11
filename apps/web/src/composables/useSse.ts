@@ -11,7 +11,7 @@ export interface SseMessage {
 /** Abonnement SSE à la progression d'un audit. */
 export function useSse(url: string, onMessage: (msg: SseMessage) => void) {
   const connected = ref(false);
-  const source = new EventSource(url);
+  const source = new EventSource(url, { withCredentials: true });
 
   source.onopen = () => (connected.value = true);
   source.onmessage = (ev) => {

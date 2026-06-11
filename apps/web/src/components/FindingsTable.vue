@@ -2,6 +2,7 @@
 import { computed, ref } from 'vue';
 import type { Finding, Severity } from '../api';
 import { SEVERITY_LABELS } from '../lib/ui';
+import { auth } from '../lib/auth';
 import SeverityBadge from './SeverityBadge.vue';
 
 const props = defineProps<{ findings: Finding[] }>();
@@ -82,7 +83,7 @@ function toggle(id: string) {
             Référence ↗
           </a>
 
-          <div class="mt-3 flex flex-wrap gap-2 border-t border-white/5 pt-3">
+          <div v-if="auth.canWrite" class="mt-3 flex flex-wrap gap-2 border-t border-white/5 pt-3">
             <button
               v-if="f.status !== 'ignored'"
               class="rounded-md border border-white/10 px-2.5 py-1 text-xs text-slate-300 hover:bg-white/5"

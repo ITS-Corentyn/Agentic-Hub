@@ -2,6 +2,7 @@ import { randomUUID } from 'node:crypto';
 import type { FastifyInstance } from 'fastify';
 import { prisma } from '@agentic-hub/db';
 import { config } from './config.js';
+import { loadSessionUser } from './auth-mw.js';
 
 /** États OAuth en attente (anti-CSRF), en mémoire avec expiration courte. */
 const pendingStates = new Map<string, number>();
@@ -95,10 +96,44 @@ export async function registerAuthRoutes(app: FastifyInstance) {
         },
       });
       const user = (await userRes.json()) as {
+        id: number;
         login: string;
         name?: string;
         avatar_url?: string;
       };
+
+      // RBAC : crée/maj le compte utilisateur (1er = admin) + session.
+      if (config.authActive && user.id) {
+        const isFirst = (await prisma.user.count()) === 0;
+        const account = await prisma.user.upsert({
+          where: { githubId: BigInt(user.id) },
+          update: {
+            login: user.login,
+            name: user.name ?? null,
+            avatarUrl: user.avatar_url ?? null,
+            accessToken: tokenData.access_token,
+            lastLoginAt: new Date(),
+          },
+          create: {
+            githubId: BigInt(user.id),
+            login: user.login,
+            name: user.name ?? null,
+            avatarUrl: user.avatar_url ?? null,
+            accessToken: tokenData.access_token,
+            role: isFirst ? 'admin' : config.auth.defaultRole,
+            lastLoginAt: new Date(),
+          },
+        });
+        const expiresAt = new Date(Date.now() + config.auth.sessionDays * 86_400_000);
+        const session = await prisma.session.create({ data: { userId: account.id, expiresAt } });
+        reply.setCookie(config.auth.cookieName, session.id, {
+          httpOnly: true,
+          sameSite: 'lax',
+          path: '/',
+          secure: config.auth.cookieSecure,
+          maxAge: config.auth.sessionDays * 86_400,
+        });
+      }
 
       await prisma.githubAuth.upsert({
         where: { id: 1 },
@@ -129,7 +164,29 @@ export async function registerAuthRoutes(app: FastifyInstance) {
     }
   });
 
-  // Déconnexion : supprime le token stocké.
+  // Utilisateur courant (pour l'UI : login requis ? rôle ?).
+  app.get('/api/auth/me', async (req) => {
+    const u = await loadSessionUser(req);
+    let full = null;
+    if (u) {
+      const acc = await prisma.user.findUnique({
+        where: { id: u.id },
+        select: { login: true, name: true, avatarUrl: true, role: true },
+      });
+      full = acc;
+    }
+    return { authActive: config.authActive, user: full };
+  });
+
+  // Déconnexion de session (utilisateur courant).
+  app.post('/api/auth/logout', async (req, reply) => {
+    const sid = (req as any).cookies?.[config.auth.cookieName];
+    if (sid) await prisma.session.deleteMany({ where: { id: sid } });
+    reply.clearCookie(config.auth.cookieName, { path: '/' });
+    return { ok: true };
+  });
+
+  // Déconnexion du compte de DONNÉES GitHub (admin / mode mono-poste).
   app.post('/api/auth/github/logout', async () => {
     await prisma.githubAuth.deleteMany({ where: { id: 1 } });
     return { ok: true };

@@ -209,6 +209,20 @@ export const AuditTriggerSchema = z.enum(['manual', 'schedule', 'ci']);
 export type AuditTrigger = z.infer<typeof AuditTriggerSchema>;
 
 // ──────────────────────────────────────────────────────────────
+// RBAC : rôles utilisateurs
+// ──────────────────────────────────────────────────────────────
+export const ROLES = ['admin', 'member', 'viewer', 'pending'] as const;
+export const RoleSchema = z.enum(ROLES);
+export type Role = z.infer<typeof RoleSchema>;
+
+export const ROLE_LABELS: Record<Role, string> = {
+  admin: 'Administrateur',
+  member: 'Membre',
+  viewer: 'Lecture seule',
+  pending: 'En attente',
+};
+
+// ──────────────────────────────────────────────────────────────
 // Gouvernance : politique de qualité (gate) & planning
 // ──────────────────────────────────────────────────────────────
 

@@ -8,6 +8,7 @@ export const router = createRouter({
     { path: '/audit/:id', name: 'audit', component: () => import('./views/AuditLiveView.vue'), props: true },
     { path: '/search', name: 'search', component: () => import('./views/SearchView.vue') },
     { path: '/settings', name: 'settings', component: () => import('./views/SettingsView.vue') },
+    { path: '/users', name: 'users', component: () => import('./views/UsersView.vue') },
   ],
   scrollBehavior: () => ({ top: 0 }),
 });

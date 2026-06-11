@@ -2,6 +2,7 @@
 import { computed, onMounted, ref } from 'vue';
 import { api, type AuditDetail, type Dimension, type Finding } from '../api';
 import { DIMENSION_LABELS, scoreColor } from '../lib/ui';
+import { auth } from '../lib/auth';
 import ScoreGauge from '../components/ScoreGauge.vue';
 import FindingsTable from '../components/FindingsTable.vue';
 import TrendChart from '../components/TrendChart.vue';
@@ -181,13 +182,14 @@ onMounted(load);
           <a :href="api.pdfUrl(audit.id)" target="_blank" class="btn-ghost">⬇ PDF</a>
           <a :href="api.csvUrl(audit.id)" class="btn-ghost">⬇ CSV</a>
           <button class="btn-ghost" @click="copyBadge">🏷️ Badge</button>
-          <button class="btn-ghost" :disabled="depBusy" @click="onDependabotPr">
+          <button v-if="auth.canWrite" class="btn-ghost" :disabled="depBusy" @click="onDependabotPr">
             {{ depBusy ? '…' : '🤖 Dependabot (PR)' }}
           </button>
-          <button class="btn-ghost" :disabled="prBusy" @click="onPrCheck">
+          <button v-if="auth.canWrite" class="btn-ghost" :disabled="prBusy" @click="onPrCheck">
             {{ prBusy ? '…' : '🔁 Check de PR (PR)' }}
           </button>
           <select
+            v-if="auth.canWrite"
             :value="schedule"
             class="rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-sm text-slate-200 outline-none focus:border-brand-500"
             title="Planifier des audits automatiques"
@@ -198,7 +200,7 @@ onMounted(load);
             <option value="weekly">⏱ Audit hebdomadaire</option>
           </select>
         </div>
-        <div class="mt-2 flex items-center gap-2">
+        <div v-if="auth.canWrite" class="mt-2 flex items-center gap-2">
           <input
             v-model="lhUrl"
             type="url"

@@ -10,6 +10,13 @@ export const DIMENSION_LABELS: Record<Dimension, string> = {
   performance: 'Performance',
 };
 
+export const ROLE_LABELS: Record<string, string> = {
+  admin: 'Administrateur',
+  member: 'Membre',
+  viewer: 'Lecture seule',
+  pending: 'En attente',
+};
+
 export const SEVERITY_LABELS: Record<Severity, string> = {
   critical: 'Critique',
   high: 'Élevé',

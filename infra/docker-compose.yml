@@ -67,6 +67,11 @@ services:
       # Version déployée (pour le bandeau "mise à jour disponible")
       AH_BUILD_SHA: ${GIT_SHA:-}
       AH_SELF_REPO: ${AH_SELF_REPO:-ITS-Corentyn/Agentic-Hub}
+      # RBAC : auth multi-utilisateur (active si OAuth configuré)
+      AUTH_ENABLED: ${AUTH_ENABLED:-true}
+      AUTH_DEFAULT_ROLE: ${AUTH_DEFAULT_ROLE:-pending}
+      AUTH_COOKIE_SECURE: ${AUTH_COOKIE_SECURE:-false}
+      AUTH_SESSION_DAYS: ${AUTH_SESSION_DAYS:-30}
     ports:
       - "${API_HOST_PORT:-3000}:3000"
 

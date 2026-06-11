@@ -92,6 +92,7 @@ async function http<T>(path: string, init?: RequestInit): Promise<T> {
   // Content-Type JSON est rejeté par Fastify (400 Bad Request).
   const headers: Record<string, string> = init?.body ? { 'Content-Type': 'application/json' } : {};
   const res = await fetch(`${BASE}${path}`, {
+    credentials: 'include', // cookie de session (cross-origin)
     ...init,
     headers: { ...headers, ...(init?.headers as Record<string, string>) },
   });
@@ -115,7 +116,30 @@ export const api = {
   health: () => http<{ ok: boolean; hybridMode: boolean; ollama: boolean }>('/api/health'),
   githubStatus: () => http<GithubStatus>('/api/auth/github/status'),
   githubLoginUrl: () => `${BASE}/api/auth/github/login`,
-  githubLogout: () => http<{ ok: boolean }>('/api/auth/github/logout', { method: 'POST' }),
+  githubLogout: () => http<{ ok: boolean }>('/api/auth/github/logout', { method: 'POST', body: '{}' }),
+  me: () =>
+    http<{
+      authActive: boolean;
+      user: { login: string; name: string | null; avatarUrl: string | null; role: string } | null;
+    }>('/api/auth/me'),
+  logoutSession: () => http<{ ok: boolean }>('/api/auth/logout', { method: 'POST', body: '{}' }),
+  listUsers: () =>
+    http<
+      {
+        id: string;
+        login: string;
+        name: string | null;
+        avatarUrl: string | null;
+        role: string;
+        disabled: boolean;
+        lastLoginAt: string | null;
+      }[]
+    >('/api/users'),
+  patchUser: (id: string, data: { role?: string; disabled?: boolean }) =>
+    http<{ id: string; role: string; disabled: boolean }>(`/api/users/${id}`, {
+      method: 'PATCH',
+      body: JSON.stringify(data),
+    }),
   listRepos: () => http<RepoSummary[]>('/api/repositories'),
   getRepo: (id: string) => http<RepoSummary>(`/api/repositories/${id}`),
   syncRepos: (owner?: string, ownerType?: 'user' | 'org') =>
