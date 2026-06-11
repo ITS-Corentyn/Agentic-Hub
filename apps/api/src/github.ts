@@ -3,6 +3,7 @@ import { createAppAuth } from '@octokit/auth-app';
 import { prisma } from '@agentic-hub/db';
 import { buildDependabotYaml } from '@agentic-hub/audit-engine';
 import { config } from './config.js';
+import { decrypt } from './crypto.js';
 
 // Cache du token d'installation GitHub App (régénéré avant expiration).
 let appTokenCache: { token: string; exp: number } | null = null;
@@ -41,7 +42,7 @@ export async function getActiveToken(): Promise<string | null> {
   const appToken = await getAppInstallationToken();
   if (appToken) return appToken;
   const auth = await prisma.githubAuth.findUnique({ where: { id: 1 } });
-  if (auth?.accessToken) return auth.accessToken;
+  if (auth?.accessToken) return decrypt(auth.accessToken);
   return config.github.token || null;
 }
 

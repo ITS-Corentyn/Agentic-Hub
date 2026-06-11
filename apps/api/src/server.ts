@@ -1,6 +1,7 @@
 import Fastify from 'fastify';
 import cors from '@fastify/cors';
 import cookie from '@fastify/cookie';
+import rateLimit from '@fastify/rate-limit';
 import { config } from './config.js';
 import { authHook } from './auth-mw.js';
 import { registerRoutes } from './routes.js';
@@ -30,6 +31,13 @@ async function main() {
     credentials: true, // cookies de session
   });
   await app.register(cookie);
+
+  // Anti-abus : limite globale de requêtes par IP (l'ingestion volumineuse passe).
+  await app.register(rateLimit, {
+    max: Number(process.env.RATE_LIMIT_MAX ?? 600),
+    timeWindow: '1 minute',
+    allowList: (req) => req.url === '/api/health',
+  });
 
   // RBAC : authentification + autorisation (no-op si auth inactive).
   app.addHook('onRequest', authHook);

@@ -13,6 +13,16 @@ const status = ref('queued');
 const logs = ref<string[]>([]);
 const failed = ref(false);
 const errorMsg = ref('');
+const cancelling = ref(false);
+
+async function cancel() {
+  cancelling.value = true;
+  try {
+    await api.cancelAudit(props.id);
+  } catch {
+    /* ignore */
+  }
+}
 
 function push(msg: string) {
   logs.value = [...logs.value.slice(-40), msg];
@@ -72,7 +82,18 @@ onMounted(async () => {
           :style="{ width: `${progress}%` }"
         />
       </div>
-      <p class="mt-2 text-right text-xs tabular-nums text-slate-400">{{ Math.round(progress) }}%</p>
+      <div class="mt-2 flex items-center justify-between">
+        <button
+          v-if="!failed && status !== 'done'"
+          class="rounded-md border border-red-500/30 px-2.5 py-1 text-xs text-red-300 hover:bg-red-500/10 disabled:opacity-50"
+          :disabled="cancelling"
+          @click="cancel"
+        >
+          {{ cancelling ? 'Annulation…' : 'Annuler' }}
+        </button>
+        <span v-else></span>
+        <span class="text-xs tabular-nums text-slate-400">{{ Math.round(progress) }}%</span>
+      </div>
 
       <div v-if="failed" class="mt-4 rounded-lg border border-red-500/30 bg-red-500/10 p-3 text-sm text-red-300">
         {{ errorMsg }}

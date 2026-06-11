@@ -1,6 +1,7 @@
 import nodemailer from 'nodemailer';
 import { prisma } from '@agentic-hub/db';
 import { EmailConfigSchema, type EmailConfig } from '@agentic-hub/shared';
+import { decrypt } from './crypto.js';
 
 /** Construit le HTML du digest : score + gate + critiques par repo. */
 async function buildDigestHtml(): Promise<{ html: string; subject: string }> {
@@ -58,7 +59,7 @@ async function loadEmailConfig(): Promise<EmailConfig | null> {
   const s = await prisma.setting.findUnique({ where: { id: 1 } });
   const parsed = EmailConfigSchema.safeParse(s?.email);
   if (!parsed.success || !parsed.data.enabled || !parsed.data.host || !parsed.data.to) return null;
-  return parsed.data;
+  return { ...parsed.data, pass: decrypt(parsed.data.pass) };
 }
 
 /** Envoie le digest si la config SMTP est complète. Renvoie un message d'état. */

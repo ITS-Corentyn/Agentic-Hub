@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue';
-import { api, type AuditDetail, type Dimension, type Finding } from '../api';
+import { api, type AuditDetail, type Dimension, type Finding, type RepoSummary } from '../api';
 import { DIMENSION_LABELS, scoreColor } from '../lib/ui';
 import { auth } from '../lib/auth';
 import ScoreGauge from '../components/ScoreGauge.vue';
@@ -13,6 +13,9 @@ const audit = ref<AuditDetail | null>(null);
 const findings = ref<Finding[]>([]);
 const trend = ref<{ date: string; score: number }[]>([]);
 const diff = ref<Awaited<ReturnType<typeof api.getDiff>> | null>(null);
+const auditList = ref<RepoSummary['audits']>([]);
+const selectedAuditId = ref('');
+const compareId = ref('');
 const loading = ref(true);
 const error = ref('');
 const activeDim = ref<Dimension | 'all'>('all');
@@ -113,35 +116,60 @@ const visibleFindings = computed(() =>
   activeDim.value === 'all' ? findings.value : findings.value.filter((f) => f.dimension === activeDim.value),
 );
 
+// Charge le détail d'un audit précis (+ findings + diff).
+async function loadAudit(auditId: string) {
+  audit.value = await api.getAudit(auditId);
+  selectedAuditId.value = auditId;
+  schedule.value = audit.value.repository.auditSchedule ?? 'off';
+  lhUrl.value = audit.value.repository.lighthouseUrl ?? '';
+  findings.value = await api.getFindings(auditId);
+  try {
+    diff.value = await api.getDiff(auditId, compareId.value || undefined);
+  } catch {
+    diff.value = null;
+  }
+}
+
 async function load() {
   loading.value = true;
   error.value = '';
   try {
     const repo = await api.getRepo(props.id);
-    const lastAudit = repo.audits.find((a) => a.status === 'done') ?? repo.audits[0];
-    if (!lastAudit) {
+    auditList.value = repo.audits;
+    const target = repo.audits.find((a) => a.status === 'done') ?? repo.audits[0];
+    if (!target) {
       error.value = 'Aucun audit disponible pour ce repository.';
       return;
     }
-    audit.value = await api.getAudit(lastAudit.id);
-    schedule.value = audit.value.repository.auditSchedule ?? 'off';
-    lhUrl.value = audit.value.repository.lighthouseUrl ?? '';
-    findings.value = await api.getFindings(lastAudit.id);
+    await loadAudit(target.id);
     try {
       trend.value = (await api.getTrend(props.id)).map((p) => ({ date: p.date, score: p.score }));
     } catch {
       trend.value = [];
-    }
-    try {
-      diff.value = await api.getDiff(lastAudit.id);
-    } catch {
-      diff.value = null;
     }
   } catch (e) {
     error.value = (e as Error).message;
   } finally {
     loading.value = false;
   }
+}
+
+async function onSelectAudit(e: Event) {
+  await loadAudit((e.target as HTMLSelectElement).value);
+}
+async function onCompare(e: Event) {
+  compareId.value = (e.target as HTMLSelectElement).value;
+  if (audit.value) {
+    try {
+      diff.value = await api.getDiff(audit.value.id, compareId.value || undefined);
+    } catch {
+      diff.value = null;
+    }
+  }
+}
+function fmtAudit(a: RepoSummary['audits'][number]): string {
+  const d = new Date(a.createdAt).toLocaleString('fr-FR', { dateStyle: 'short', timeStyle: 'short' });
+  return `${d} · ${a.globalScore ?? '—'}/100${a.status !== 'done' ? ` (${a.status})` : ''}`;
 }
 
 onMounted(load);
@@ -213,6 +241,29 @@ onMounted(load);
         </div>
       </div>
       <ScoreGauge :score="audit.globalScore ?? 0" :size="150" label="score global" />
+    </div>
+
+    <!-- Historique : choisir l'audit affiché + comparer -->
+    <div v-if="auditList.length > 1" class="card flex flex-wrap items-center gap-3 p-4 text-sm">
+      <label class="text-slate-400">Audit :</label>
+      <select
+        :value="selectedAuditId"
+        class="rounded-lg border border-white/10 bg-white/5 px-3 py-1.5 outline-none focus:border-brand-500"
+        @change="onSelectAudit"
+      >
+        <option v-for="a in auditList" :key="a.id" :value="a.id">{{ fmtAudit(a) }}</option>
+      </select>
+      <label class="ml-2 text-slate-400">Comparer à :</label>
+      <select
+        :value="compareId"
+        class="rounded-lg border border-white/10 bg-white/5 px-3 py-1.5 outline-none focus:border-brand-500"
+        @change="onCompare"
+      >
+        <option value="">Audit précédent (auto)</option>
+        <option v-for="a in auditList.filter((x) => x.id !== selectedAuditId)" :key="a.id" :value="a.id">
+          {{ fmtAudit(a) }}
+        </option>
+      </select>
     </div>
 
     <!-- Tendance + diff depuis le dernier audit -->
@@ -311,7 +362,13 @@ onMounted(load);
           Voir toutes les dimensions
         </button>
       </div>
-      <FindingsTable :findings="visibleFindings" @triage="onTriage" @issue="onIssue" />
+      <FindingsTable
+        :findings="visibleFindings"
+        :repo-url="audit.repository.url"
+        :commit-sha="audit.commitSha"
+        @triage="onTriage"
+        @issue="onIssue"
+      />
     </div>
 
     <!-- Toast -->

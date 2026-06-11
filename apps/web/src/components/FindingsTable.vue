@@ -1,15 +1,24 @@
 <script setup lang="ts">
-import { computed, ref } from 'vue';
+import { computed, ref, watch } from 'vue';
 import type { Finding, Severity } from '../api';
 import { SEVERITY_LABELS } from '../lib/ui';
 import { auth } from '../lib/auth';
 import SeverityBadge from './SeverityBadge.vue';
 
-const props = defineProps<{ findings: Finding[] }>();
+const props = defineProps<{ findings: Finding[]; repoUrl?: string | null; commitSha?: string | null }>();
 const emit = defineEmits<{ triage: [id: string, status: string]; issue: [id: string] }>();
 const expanded = ref<Set<string>>(new Set());
 const sevFilter = ref<Severity | 'all'>('all');
 const busyId = ref<string | null>(null);
+const PAGE = 50;
+const visibleCount = ref(PAGE);
+
+/** Lien profond vers le fichier:ligne sur GitHub (si dispo). */
+function ghLink(f: Finding): string | null {
+  if (!props.repoUrl || !f.filePath) return null;
+  const ref = props.commitSha || 'HEAD';
+  return `${props.repoUrl}/blob/${ref}/${f.filePath}${f.line ? `#L${f.line}` : ''}`;
+}
 
 async function onIssue(id: string) {
   busyId.value = id;
@@ -25,6 +34,9 @@ const filtered = computed(() => {
     sevFilter.value === 'all' ? props.findings : props.findings.filter((f) => f.severity === sevFilter.value);
   return [...list].sort((a, b) => ORDER.indexOf(a.severity) - ORDER.indexOf(b.severity));
 });
+// Pagination côté client (évite de rendre des centaines de findings d'un coup).
+const visible = computed(() => filtered.value.slice(0, visibleCount.value));
+watch([sevFilter, () => props.findings], () => (visibleCount.value = PAGE));
 
 function toggle(id: string) {
   const s = new Set(expanded.value);
@@ -57,7 +69,7 @@ function toggle(id: string) {
     </p>
 
     <ul class="space-y-2">
-      <li v-for="f in filtered" :key="f.id" class="card overflow-hidden">
+      <li v-for="f in visible" :key="f.id" class="card overflow-hidden">
         <button
           class="flex w-full items-center gap-3 p-3 text-left"
           :class="f.status === 'ignored' ? 'opacity-50' : ''"
@@ -79,9 +91,14 @@ function toggle(id: string) {
             <p class="mb-1 text-xs font-semibold text-emerald-300">✅ Correctif recommandé</p>
             <p class="text-sm text-slate-200">{{ f.remediation || 'Voir la référence.' }}</p>
           </div>
-          <a v-if="f.reference" :href="f.reference" target="_blank" class="mt-2 inline-block text-xs text-brand-400 hover:underline">
-            Référence ↗
-          </a>
+          <div class="mt-2 flex flex-wrap gap-3">
+            <a v-if="ghLink(f)" :href="ghLink(f)!" target="_blank" class="text-xs text-brand-400 hover:underline">
+              Voir sur GitHub ↗ <code class="text-slate-400">{{ f.filePath }}{{ f.line ? `:${f.line}` : '' }}</code>
+            </a>
+            <a v-if="f.reference" :href="f.reference" target="_blank" class="text-xs text-brand-400 hover:underline">
+              Référence ↗
+            </a>
+          </div>
 
           <div v-if="auth.canWrite" class="mt-3 flex flex-wrap gap-2 border-t border-white/5 pt-3">
             <button
@@ -109,5 +126,11 @@ function toggle(id: string) {
         </div>
       </li>
     </ul>
+
+    <div v-if="visibleCount < filtered.length" class="mt-3 text-center">
+      <button class="btn-ghost" @click="visibleCount += PAGE">
+        Voir plus ({{ filtered.length - visibleCount }} restant·s)
+      </button>
+    </div>
   </div>
 </template>

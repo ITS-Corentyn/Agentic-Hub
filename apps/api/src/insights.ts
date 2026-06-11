@@ -36,22 +36,26 @@ export async function registerInsightRoutes(app: FastifyInstance) {
   // Diff d'un audit vs l'audit precedent du meme repo (nouveau / corrige / persistant).
   app.get('/api/audits/:id/diff', async (req, reply) => {
     const { id } = req.params as { id: string };
+    const against = (req.query as { against?: string }).against;
     const cur = await prisma.audit.findUnique({
       where: { id },
       include: { findings: true },
     });
     if (!cur) return reply.code(404).send({ error: 'Audit introuvable' });
 
-    const prev = await prisma.audit.findFirst({
-      where: {
-        repositoryId: cur.repositoryId,
-        status: 'done',
-        id: { not: cur.id },
-        createdAt: { lt: cur.createdAt },
-      },
-      orderBy: { createdAt: 'desc' },
-      include: { findings: true },
-    });
+    // Comparaison contre un audit précis (?against) ou, par défaut, le précédent.
+    const prev = against
+      ? await prisma.audit.findUnique({ where: { id: against }, include: { findings: true } })
+      : await prisma.audit.findFirst({
+          where: {
+            repositoryId: cur.repositoryId,
+            status: 'done',
+            id: { not: cur.id },
+            createdAt: { lt: cur.createdAt },
+          },
+          orderBy: { createdAt: 'desc' },
+          include: { findings: true },
+        });
 
     const curMap = new Map(cur.findings.map((f) => [matchKey(f), f]));
     const prevMap = new Map((prev?.findings ?? []).map((f) => [matchKey(f), f]));

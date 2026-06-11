@@ -167,14 +167,16 @@ export const api = {
     http<{ auditId: string; date: string; score: number; findings: number; commit: string | null }[]>(
       `/api/repositories/${repoId}/trend`,
     ),
-  getDiff: (auditId: string) =>
+  getDiff: (auditId: string, against?: string) =>
     http<{
       previousAuditId: string | null;
       deltaScore: number | null;
       counts: { added: number; fixed: number; persistent: number };
       added: { id: string; severity: Severity; dimension: Dimension; title: string; filePath: string | null }[];
       fixed: { id: string; severity: Severity; dimension: Dimension; title: string; filePath: string | null }[];
-    }>(`/api/audits/${auditId}/diff`),
+    }>(`/api/audits/${auditId}/diff${against ? `?against=${against}` : ''}`),
+  cancelAudit: (id: string) =>
+    http<{ ok: boolean }>(`/api/audits/${id}/cancel`, { method: 'POST', body: '{}' }),
   searchFindings: (params: { q?: string; severity?: string; dimension?: string }) => {
     const qs = new URLSearchParams(
       Object.fromEntries(Object.entries(params).filter(([, v]) => v)) as Record<string, string>,

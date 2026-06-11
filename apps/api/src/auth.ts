@@ -3,6 +3,7 @@ import type { FastifyInstance } from 'fastify';
 import { prisma } from '@agentic-hub/db';
 import { config } from './config.js';
 import { loadSessionUser } from './auth-mw.js';
+import { encrypt } from './crypto.js';
 
 /** États OAuth en attente (anti-CSRF), en mémoire avec expiration courte. */
 const pendingStates = new Map<string, number>();
@@ -105,13 +106,14 @@ export async function registerAuthRoutes(app: FastifyInstance) {
       // RBAC : crée/maj le compte utilisateur (1er = admin) + session.
       if (config.authActive && user.id) {
         const isFirst = (await prisma.user.count()) === 0;
+        const encTok = encrypt(tokenData.access_token);
         const account = await prisma.user.upsert({
           where: { githubId: BigInt(user.id) },
           update: {
             login: user.login,
             name: user.name ?? null,
             avatarUrl: user.avatar_url ?? null,
-            accessToken: tokenData.access_token,
+            accessToken: encTok,
             lastLoginAt: new Date(),
           },
           create: {
@@ -119,7 +121,7 @@ export async function registerAuthRoutes(app: FastifyInstance) {
             login: user.login,
             name: user.name ?? null,
             avatarUrl: user.avatar_url ?? null,
-            accessToken: tokenData.access_token,
+            accessToken: encTok,
             role: isFirst ? 'admin' : config.auth.defaultRole,
             lastLoginAt: new Date(),
           },
@@ -135,13 +137,14 @@ export async function registerAuthRoutes(app: FastifyInstance) {
         });
       }
 
+      const encDataTok = encrypt(tokenData.access_token);
       await prisma.githubAuth.upsert({
         where: { id: 1 },
         update: {
           login: user.login,
           name: user.name ?? null,
           avatarUrl: user.avatar_url ?? null,
-          accessToken: tokenData.access_token,
+          accessToken: encDataTok,
           scope: tokenData.scope ?? null,
           tokenType: tokenData.token_type ?? null,
           connectedAt: new Date(),
@@ -151,7 +154,7 @@ export async function registerAuthRoutes(app: FastifyInstance) {
           login: user.login,
           name: user.name ?? null,
           avatarUrl: user.avatar_url ?? null,
-          accessToken: tokenData.access_token,
+          accessToken: encDataTok,
           scope: tokenData.scope ?? null,
           tokenType: tokenData.token_type ?? null,
         },

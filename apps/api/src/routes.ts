@@ -12,12 +12,15 @@ import {
   type SseEvent,
 } from '@agentic-hub/shared';
 import { sendDigest } from './digest.js';
+import { encrypt } from './crypto.js';
 import { buildDependabotYaml } from '@agentic-hub/audit-engine';
 import { config } from './config.js';
 import { dispatchAuditWorkflow, getActiveToken, getHeadSha, listRepositories } from './github.js';
 import { enqueueLocalAudit } from './queue.js';
 import { buildReportMarkdown, loadAuditResult, persistAuditResult } from './service.js';
 import { sseHub } from './sse.js';
+
+const ACTIVE_STATUSES = ['queued', 'running', 'analyzing'];
 
 const LANG_TO_ECOSYSTEM: Record<string, string> = {
   TypeScript: 'npm',
@@ -182,6 +185,22 @@ export async function registerRoutes(app: FastifyInstance) {
     return audit;
   });
 
+  // Annulation d'un audit en cours (best-effort).
+  app.post('/api/audits/:id/cancel', async (req, reply) => {
+    const { id } = req.params as { id: string };
+    const audit = await prisma.audit.findUnique({ where: { id } });
+    if (!audit) return reply.code(404).send({ error: 'Audit introuvable' });
+    if (!ACTIVE_STATUSES.includes(audit.status)) {
+      return reply.code(400).send({ error: 'Audit déjà terminé' });
+    }
+    await prisma.audit.update({
+      where: { id },
+      data: { status: 'failed', error: 'Annulé par l’utilisateur', finishedAt: new Date() },
+    });
+    sseHub.publish({ type: 'error', auditId: id, status: 'failed', message: 'Audit annulé' });
+    return { ok: true };
+  });
+
   app.get('/api/audits/:id/findings', async (req) => {
     const { id } = req.params as { id: string };
     const q = req.query as { dimension?: string; severity?: string };
@@ -334,7 +353,18 @@ export async function registerRoutes(app: FastifyInstance) {
       scoring: s?.scoring ?? DEFAULT_SCORING,
       policy: s?.policy ?? DEFAULT_POLICY,
       notify: s?.notify ?? { webhookUrl: '', mode: 'off' },
-      email: s?.email ?? { enabled: false, host: '', port: 587, secure: false, user: '', pass: '', from: '', to: '' },
+      // Le mot de passe SMTP n'est jamais renvoyé en clair (masqué).
+      email: {
+        enabled: false,
+        host: '',
+        port: 587,
+        secure: false,
+        user: '',
+        from: '',
+        to: '',
+        ...((s?.email as Record<string, unknown>) ?? {}),
+        pass: '',
+      },
     };
   });
 
@@ -359,7 +389,12 @@ export async function registerRoutes(app: FastifyInstance) {
     if (body.email !== undefined) {
       const p = EmailConfigSchema.safeParse(body.email);
       if (!p.success) return reply.code(400).send({ error: 'Config e-mail invalide' });
-      data.email = p.data;
+      // Chiffre le mot de passe ; s'il est vide (masqué), conserve l'existant.
+      const existing = (await prisma.setting.findUnique({ where: { id: 1 } }))?.email as
+        | { pass?: string }
+        | undefined;
+      const pass = p.data.pass ? encrypt(p.data.pass) : (existing?.pass ?? '');
+      data.email = { ...p.data, pass };
     }
     const s = await prisma.setting.upsert({
       where: { id: 1 },

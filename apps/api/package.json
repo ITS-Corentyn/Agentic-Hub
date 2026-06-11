@@ -16,6 +16,7 @@
     "@agentic-hub/shared": "workspace:*",
     "@fastify/cookie": "^11.0.2",
     "@fastify/cors": "^10.0.1",
+    "@fastify/rate-limit": "^10.2.2",
     "@octokit/auth-app": "^7.1.3",
     "@octokit/rest": "^21.0.2",
     "nodemailer": "^6.9.16",

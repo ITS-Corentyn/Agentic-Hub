@@ -7,6 +7,10 @@ import { sseHub } from './sse.js';
 
 /** Persiste un AuditResult (findings + dimensions + métriques) et passe en "analyzing". */
 export async function persistAuditResult(auditId: string, result: AuditResult): Promise<void> {
+  // Audit annulé entre-temps : on n'écrase pas son état "failed".
+  const current = await prisma.audit.findUnique({ where: { id: auditId }, select: { status: true } });
+  if (!current || current.status === 'failed' || current.status === 'done') return;
+
   await prisma.$transaction(async (tx) => {
     await tx.finding.deleteMany({ where: { auditId } });
     await tx.dimensionResult.deleteMany({ where: { auditId } });
