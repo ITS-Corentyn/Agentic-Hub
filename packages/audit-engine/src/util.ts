@@ -1,6 +1,6 @@
-import { spawnSync } from 'node:child_process';
+import { spawn, spawnSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
-import type { Dimension, Finding, Severity, ToolName } from '@agentic-hub/shared';
+import { SEVERITY_RANK, type Dimension, type Finding, type Severity, type ToolName } from '@agentic-hub/shared';
 
 export interface ExecResult {
   ok: boolean;
@@ -28,6 +28,56 @@ export function exec(cmd: string, args: string[], cwd: string, timeoutMs = 600_0
     stderr: res.stderr ?? '',
     notFound,
   };
+}
+
+/** Variante asynchrone de `exec` (ne bloque pas l'event loop → parallélisable). */
+export function execAsync(
+  cmd: string,
+  args: string[],
+  cwd: string,
+  timeoutMs = 600_000,
+): Promise<ExecResult> {
+  return new Promise((resolve) => {
+    let stdout = '';
+    let stderr = '';
+    let settled = false;
+    const child = spawn(cmd, args, {
+      cwd,
+      shell: process.platform === 'win32',
+    });
+    const timer = setTimeout(() => {
+      if (!settled) {
+        settled = true;
+        child.kill('SIGKILL');
+        resolve({ ok: false, code: null, stdout, stderr, notFound: false });
+      }
+    }, timeoutMs);
+
+    child.stdout?.on('data', (d) => {
+      if (stdout.length < 64 * 1024 * 1024) stdout += d.toString();
+    });
+    child.stderr?.on('data', (d) => {
+      if (stderr.length < 16 * 1024 * 1024) stderr += d.toString();
+    });
+    child.on('error', (err) => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timer);
+      resolve({
+        ok: false,
+        code: null,
+        stdout,
+        stderr,
+        notFound: (err as NodeJS.ErrnoException).code === 'ENOENT',
+      });
+    });
+    child.on('close', (code) => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timer);
+      resolve({ ok: code === 0, code, stdout, stderr, notFound: false });
+    });
+  });
 }
 
 /** Vérifie qu'un outil est disponible dans le PATH. */
@@ -127,5 +177,23 @@ export function makeFinding(input: {
 export function dedupeFindings(findings: Finding[]): Finding[] {
   const seen = new Map<string, Finding>();
   for (const f of findings) if (!seen.has(f.fingerprint)) seen.set(f.fingerprint, f);
+  return [...seen.values()];
+}
+
+/**
+ * Dédoublonnage INTER-OUTILS : fusionne les findings quasi-identiques (même
+ * dimension + même fichier:ligne + même titre normalisé) reportés par plusieurs
+ * outils (ex. Semgrep + ESLint au même endroit). Conserve le plus sévère.
+ * Conservateur : ne fusionne pas des titres différents (n'écrase pas d'autres
+ * problèmes au même endroit).
+ */
+export function crossToolDedupe(findings: Finding[]): Finding[] {
+  const seen = new Map<string, Finding>();
+  for (const f of findings) {
+    const norm = f.title.toLowerCase().replace(/[^a-z0-9]/g, '').slice(0, 28);
+    const key = `${f.dimension}|${f.filePath ?? ''}|${f.line ?? ''}|${norm}`;
+    const prev = seen.get(key);
+    if (!prev || SEVERITY_RANK[f.severity] > SEVERITY_RANK[prev.severity]) seen.set(key, f);
+  }
   return [...seen.values()];
 }

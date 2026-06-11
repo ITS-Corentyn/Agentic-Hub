@@ -11,7 +11,7 @@ import { analyzeDependabot } from './dependabot.js';
 import { computeMetrics } from './metrics.js';
 import { runAllScanners, type ScannerOutput } from './scanners.js';
 import { scoreDimensions, scoreGlobal } from './scoring.js';
-import { dedupeFindings } from './util.js';
+import { crossToolDedupe, dedupeFindings } from './util.js';
 
 export interface RunAuditOptions {
   auditId?: string | null;
@@ -34,22 +34,21 @@ export interface RunAuditResult {
  * Exécute un audit complet sur un dossier : métriques + scanners + dependabot,
  * normalisation, dédoublonnage, scoring. Renvoie un AuditResult prêt à ingérer.
  */
-export function runAudit(root: string, opts: RunAuditOptions = {}): RunAuditResult {
+export async function runAudit(root: string, opts: RunAuditOptions = {}): Promise<RunAuditResult> {
   const scoring = opts.scoring ?? DEFAULT_SCORING;
   const generatedAt = new Date().toISOString();
 
   const metrics = computeMetrics(root);
 
-  const scannerOutputs: ScannerOutput[] = runAllScanners(root, opts.onProgress);
+  const scannerOutputs: ScannerOutput[] = await runAllScanners(root, opts.onProgress);
   const dependabot = analyzeDependabot(root);
   opts.onProgress?.('engine');
 
   // Suppressions repo-local : ruleIds à ignorer (.agentic-hub/suppress.txt, 1 par ligne).
   const suppressed = loadSuppressions(root);
-  const allFindings: Finding[] = dedupeFindings([
-    ...scannerOutputs.flatMap((s) => s.findings),
-    ...dependabot.findings,
-  ]).filter((f) => !suppressed.has(f.ruleId));
+  const allFindings: Finding[] = crossToolDedupe(
+    dedupeFindings([...scannerOutputs.flatMap((s) => s.findings), ...dependabot.findings]),
+  ).filter((f) => !suppressed.has(f.ruleId));
 
   const dimensions = scoreDimensions(allFindings, metrics.loc, scoring);
   const globalScore = scoreGlobal(dimensions, scoring);

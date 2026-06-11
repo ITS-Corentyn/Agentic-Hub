@@ -285,6 +285,35 @@ export function normalizeNpmAudit(raw: any): Finding[] {
 }
 
 // ──────────────────────────────────────────────────────────────
+// ts-prune — exports TypeScript non utilisés (code mort, qualité)
+// ──────────────────────────────────────────────────────────────
+export function normalizeTsPrune(stdout: string, root: string): Finding[] {
+  const out: Finding[] = [];
+  for (const line of stdout.split('\n')) {
+    const t = line.trim();
+    if (!t || t.includes('(used in module)')) continue; // exports utilisés en interne : ignorés
+    const m = t.match(/^(.+?):(\d+)\s*-\s*(.+)$/);
+    if (!m) continue;
+    const [, file, lineNo, name] = m;
+    out.push(
+      makeFinding({
+        dimension: 'quality',
+        tool: 'ts-prune',
+        severity: 'low',
+        ruleId: 'unused-export',
+        title: `Export inutilisé : ${name}`,
+        description: `\`${name}\` est exporté mais n'est jamais importé ailleurs (code mort potentiel).`,
+        filePath: rel(root, file),
+        line: Number(lineNo),
+        remediation: `Retirer l'export \`${name}\` s'il est réellement inutile (ou le rendre privé).`,
+        reference: null,
+      }),
+    );
+  }
+  return out;
+}
+
+// ──────────────────────────────────────────────────────────────
 // ESLint — qualité / complexité (perf) / sécurité ponctuelle
 // ──────────────────────────────────────────────────────────────
 const ESLINT_PERF_RULES = new Set([

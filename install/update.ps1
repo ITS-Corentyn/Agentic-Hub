@@ -95,6 +95,7 @@ if (Get-Command nvidia-smi -ErrorAction SilentlyContinue) {
   if ($v -match '^\s*\d+\s*$') { $useGpu = $true }
 }
 
+$env:GIT_SHA = $new  # version deployee (bandeau "mise a jour")
 $envPath = Join-Path $RepoRoot '.env'
 $composeArgs = @('--env-file', $envPath, '-f', (Join-Path $RepoRoot 'infra\docker-compose.yml'))
 if ($useGpu) { $composeArgs += @('-f', (Join-Path $RepoRoot 'infra\docker-compose.gpu.yml')) }

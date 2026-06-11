@@ -55,6 +55,18 @@ async function onIssue(findingId: string) {
   }
 }
 
+async function copyBadge() {
+  if (!audit.value) return;
+  const url = api.badgeUrl(audit.value.repository.id);
+  const snippet = `![Agentic-Hub](${url})`;
+  try {
+    await navigator.clipboard.writeText(snippet);
+    flash('Markdown du badge copié dans le presse-papier');
+  } catch {
+    flash(snippet);
+  }
+}
+
 async function onDependabotPr() {
   if (!audit.value) return;
   depBusy.value = true;
@@ -138,7 +150,10 @@ onMounted(load);
           <span v-if="audit.toolsSkipped.length">· ignorés : {{ audit.toolsSkipped.join(', ') }}</span>
         </p>
         <div class="mt-3 flex flex-wrap gap-2">
-          <a :href="api.reportUrl(audit.id)" target="_blank" class="btn-ghost">⬇ Rapport Markdown</a>
+          <a :href="api.reportUrl(audit.id)" target="_blank" class="btn-ghost">⬇ MD</a>
+          <a :href="api.pdfUrl(audit.id)" target="_blank" class="btn-ghost">⬇ PDF</a>
+          <a :href="api.csvUrl(audit.id)" class="btn-ghost">⬇ CSV</a>
+          <button class="btn-ghost" @click="copyBadge">🏷️ Badge</button>
           <button class="btn-ghost" :disabled="depBusy" @click="onDependabotPr">
             {{ depBusy ? '…' : '🤖 Activer Dependabot (PR)' }}
           </button>

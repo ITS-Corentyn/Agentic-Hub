@@ -249,6 +249,8 @@ Set-EnvVar $envPath 'OLLAMA_HOST_PORT' $ollamaPort
 Set-EnvVar $envPath 'WEB_ORIGIN' "http://localhost:$webPort"
 Set-EnvVar $envPath 'VITE_API_BASE' "http://localhost:$apiPort"
 Set-EnvVar $envPath 'OLLAMA_MODEL' $plan.Model
+# Version deployee (pour le bandeau "mise a jour disponible")
+try { $env:GIT_SHA = (& git -C $RepoRoot rev-parse HEAD 2>$null).Trim() } catch {}
 Ok "API:$apiPort  Web:$webPort  DB:$pgPort  Ollama:$ollamaPort  Modele:$($plan.Model)"
 
 # -- 4. Build + demarrage -------------------------------------

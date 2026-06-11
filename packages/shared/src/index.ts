@@ -67,6 +67,7 @@ export const TOOLS = [
   'lighthouse',
   'npm-audit',
   'depcheck',
+  'ts-prune',
   'engine', // findings synthétiques produits par le moteur (ex: dependabot manquant)
 ] as const;
 export const ToolSchema = z.enum(TOOLS);

@@ -72,6 +72,7 @@ if command -v nvidia-smi >/dev/null 2>&1 && nvidia-smi --query-gpu=memory.total 
   USE_GPU=true
 fi
 
+export GIT_SHA="$NEW"  # version deployee (bandeau MAJ)
 ENV_FILE="$ROOT/.env"
 COMPOSE=(docker compose --env-file "$ENV_FILE" -f "$ROOT/infra/docker-compose.yml")
 [ "$USE_GPU" = true ] && COMPOSE+=(-f "$ROOT/infra/docker-compose.gpu.yml")

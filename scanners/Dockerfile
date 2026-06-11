@@ -25,7 +25,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     && apt-get clean && rm -rf /var/lib/apt/lists/*
 
 # Outils Node globaux (qualité / architecture / dépendances)
-RUN npm install -g jscpd@4 dependency-cruiser@16 madge@8 depcheck@1
+RUN npm install -g jscpd@4 dependency-cruiser@16 madge@8 depcheck@1 ts-prune@0.10
 
 # Toolbox ESLint autonome (TS/Vue)
 COPY scanners/eslint /opt/eslint-audit

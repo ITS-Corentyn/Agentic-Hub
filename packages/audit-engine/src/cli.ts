@@ -32,7 +32,7 @@ function parseArgs(argv: string[]) {
   return { args, positional };
 }
 
-function main() {
+async function main() {
   const [command, ...rest] = process.argv.slice(2);
   if (command !== 'scan') {
     console.error('Usage : audit-engine scan <dir> [--out result.json] [--report report.md]');
@@ -43,7 +43,7 @@ function main() {
   const target = resolve(positional[0] ?? process.cwd());
 
   console.error(`▶ Audit de ${target}`);
-  const { result, proposedDependabot } = runAudit(target, {
+  const { result, proposedDependabot } = await runAudit(target, {
     auditId: args['audit-id'] ?? null,
     commitSha: args['commit'] ?? null,
     repoFullName: args['repo'],
@@ -86,4 +86,7 @@ function main() {
   }
 }
 
-main();
+main().catch((err) => {
+  console.error(err);
+  process.exit(1);
+});

@@ -51,7 +51,7 @@ export async function runLocalAudit(auditId: string): Promise<void> {
     sseHub.publish({ type: 'status', auditId, status: 'running', message: 'Exécution des scanners…', progress: 30 });
 
     const setting = await prisma.setting.findUnique({ where: { id: 1 } });
-    const { result, artifacts } = runAudit(workdir, {
+    const { result, artifacts } = await runAudit(workdir, {
       auditId,
       commitSha: headSha || null,
       repoFullName: repo.fullName,

@@ -130,6 +130,9 @@ export const api = {
     return http<Finding[]>(`/api/audits/${id}/findings${q ? `?${q}` : ''}`);
   },
   reportUrl: (id: string) => `${BASE}/api/audits/${id}/report.md`,
+  pdfUrl: (id: string) => `${BASE}/api/audits/${id}/report.pdf`,
+  csvUrl: (id: string) => `${BASE}/api/audits/${id}/findings.csv`,
+  badgeUrl: (repoId: string) => `${BASE}/api/repositories/${repoId}/badge.svg`,
   getReportMarkdown: async (id: string) => {
     const res = await fetch(`${BASE}/api/audits/${id}/report.md`);
     return res.text();
@@ -147,6 +150,27 @@ export const api = {
       added: { id: string; severity: Severity; dimension: Dimension; title: string; filePath: string | null }[];
       fixed: { id: string; severity: Severity; dimension: Dimension; title: string; filePath: string | null }[];
     }>(`/api/audits/${auditId}/diff`),
+  searchFindings: (params: { q?: string; severity?: string; dimension?: string }) => {
+    const qs = new URLSearchParams(
+      Object.fromEntries(Object.entries(params).filter(([, v]) => v)) as Record<string, string>,
+    ).toString();
+    return http<
+      {
+        id: string;
+        severity: Severity;
+        dimension: Dimension;
+        tool: string;
+        title: string;
+        filePath: string | null;
+        line: number | null;
+        repo: { repoId: string; fullName: string } | null;
+      }[]
+    >(`/api/findings/search${qs ? `?${qs}` : ''}`);
+  },
+  systemVersion: () =>
+    http<{ current: string | null; latest: string | null; updateAvailable: boolean }>(
+      '/api/system/version',
+    ),
   getOverview: () =>
     http<{
       repoCount: number;

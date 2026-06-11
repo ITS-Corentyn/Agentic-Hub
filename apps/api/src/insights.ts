@@ -82,6 +82,54 @@ export async function registerInsightRoutes(app: FastifyInstance) {
     };
   });
 
+  // Recherche globale des findings (dernier audit de chaque repo).
+  app.get('/api/findings/search', async (req) => {
+    const q = req.query as { q?: string; severity?: string; dimension?: string; limit?: string };
+    const repos = await prisma.repository.findMany({
+      select: {
+        id: true,
+        fullName: true,
+        audits: { where: { status: 'done' }, orderBy: { createdAt: 'desc' }, take: 1, select: { id: true } },
+      },
+    });
+    const map = new Map<string, { repoId: string; fullName: string }>();
+    for (const r of repos) {
+      if (r.audits[0]) map.set(r.audits[0].id, { repoId: r.id, fullName: r.fullName });
+    }
+    const auditIds = [...map.keys()];
+    if (!auditIds.length) return [];
+
+    const findings = await prisma.finding.findMany({
+      where: {
+        auditId: { in: auditIds },
+        status: { not: 'ignored' },
+        ...(q.severity ? { severity: q.severity as any } : {}),
+        ...(q.dimension ? { dimension: q.dimension } : {}),
+        ...(q.q
+          ? {
+              OR: [
+                { title: { contains: q.q, mode: 'insensitive' } },
+                { filePath: { contains: q.q, mode: 'insensitive' } },
+                { ruleId: { contains: q.q, mode: 'insensitive' } },
+              ],
+            }
+          : {}),
+      },
+      orderBy: [{ severity: 'asc' }],
+      take: Math.min(Number(q.limit ?? 200), 500),
+    });
+    return findings.map((f) => ({
+      id: f.id,
+      severity: f.severity,
+      dimension: f.dimension,
+      tool: f.tool,
+      title: f.title,
+      filePath: f.filePath,
+      line: f.line,
+      repo: map.get(f.auditId) ?? null,
+    }));
+  });
+
   // Vue d'ensemble (organisation) : scores, severites, pires repos, regles frequentes.
   app.get('/api/stats/overview', async () => {
     const repos = await prisma.repository.findMany({

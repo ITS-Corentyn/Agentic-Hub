@@ -17,6 +17,7 @@
     "@fastify/cors": "^10.0.1",
     "@octokit/rest": "^21.0.2",
     "fastify": "^5.2.1",
+    "marked": "^15.0.6",
     "pg-boss": "^10.1.6",
     "zod": "^3.24.1"
   },

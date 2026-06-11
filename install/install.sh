@@ -117,6 +117,7 @@ set_env OLLAMA_HOST_PORT "$OLLAMA_PORT"
 set_env WEB_ORIGIN "http://localhost:${WEB_PORT}"
 set_env VITE_API_BASE "http://localhost:${API_PORT}"
 set_env OLLAMA_MODEL "$MODEL"
+export GIT_SHA="$(git -C "$ROOT" rev-parse HEAD 2>/dev/null || echo '')"  # bandeau MAJ
 green "API:${API_PORT}  Web:${WEB_PORT}  DB:${PG_PORT}  Ollama:${OLLAMA_PORT}  Modèle:${MODEL}"
 
 # ── 4. Build + démarrage ─────────────────────────────────────

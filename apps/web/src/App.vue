@@ -2,9 +2,12 @@
 import { onMounted, ref } from 'vue';
 import { RouterLink, RouterView } from 'vue-router';
 import { api, type GithubStatus } from './api';
+import CommandPalette from './components/CommandPalette.vue';
 
 const health = ref<{ hybridMode: boolean; ollama: boolean } | null>(null);
 const gh = ref<GithubStatus | null>(null);
+const updateAvailable = ref(false);
+const palette = ref<InstanceType<typeof CommandPalette> | null>(null);
 
 async function refreshGithub() {
   try {
@@ -30,6 +33,12 @@ onMounted(async () => {
     health.value = null;
   }
   await refreshGithub();
+  try {
+    const v = await api.systemVersion();
+    updateAvailable.value = v.updateAvailable;
+  } catch {
+    updateAvailable.value = false;
+  }
 });
 </script>
 
@@ -51,9 +60,19 @@ onMounted(async () => {
           <RouterLink to="/" class="rounded-lg px-3 py-2 text-slate-300 hover:bg-white/5" active-class="text-white">
             Dashboard
           </RouterLink>
+          <RouterLink to="/search" class="rounded-lg px-3 py-2 text-slate-300 hover:bg-white/5" active-class="text-white">
+            Recherche
+          </RouterLink>
           <RouterLink to="/settings" class="rounded-lg px-3 py-2 text-slate-300 hover:bg-white/5" active-class="text-white">
             Réglages
           </RouterLink>
+          <button
+            class="hidden rounded-lg border border-white/10 px-2 py-1 text-[11px] text-slate-400 hover:bg-white/5 sm:block"
+            title="Palette de commandes (Ctrl/Cmd+K)"
+            @click="palette?.show()"
+          >
+            ⌘K
+          </button>
           <span
             v-if="health"
             class="ml-2 rounded-full border border-white/10 px-3 py-1 text-[11px] text-slate-400"
@@ -95,6 +114,14 @@ onMounted(async () => {
       </div>
     </header>
 
+    <div
+      v-if="updateAvailable"
+      class="border-b border-amber-500/20 bg-amber-500/10 px-6 py-2 text-center text-sm text-amber-200"
+    >
+      🔄 Une mise à jour est disponible — lance <code>Update-Windows.cmd</code> /
+      <code>Update-macOS.command</code> (ou attends la mise à jour automatique).
+    </div>
+
     <main class="mx-auto max-w-7xl px-6 py-8">
       <RouterView v-slot="{ Component }">
         <Transition name="fade" mode="out-in">
@@ -102,5 +129,7 @@ onMounted(async () => {
         </Transition>
       </RouterView>
     </main>
+
+    <CommandPalette ref="palette" />
   </div>
 </template>

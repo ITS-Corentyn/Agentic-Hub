@@ -7,9 +7,9 @@ ENV DEBIAN_FRONTEND=noninteractive \
     NODE_ENV=production \
     CI=true
 
-# Scanners système : git, semgrep, trivy, gitleaks, osv-scanner
+# Scanners système : git, semgrep, trivy, gitleaks, osv-scanner + chromium (PDF/Lighthouse)
 RUN apt-get update && apt-get install -y --no-install-recommends \
-      git curl ca-certificates python3 python3-pip jq \
+      git curl ca-certificates python3 python3-pip jq chromium \
     && pip3 install --no-cache-dir semgrep \
     && curl -sfL https://raw.githubusercontent.com/aquasecurity/trivy/main/contrib/install.sh | sh -s -- -b /usr/local/bin \
     && GITLEAKS_VERSION=8.21.2 \
@@ -19,8 +19,10 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     && chmod +x /usr/local/bin/osv-scanner \
     && apt-get clean && rm -rf /var/lib/apt/lists/*
 
+ENV CHROME_PATH=/usr/bin/chromium
+
 # Outils Node globaux (qualité / architecture / dépendances)
-RUN npm install -g jscpd@4 dependency-cruiser@16 madge@8 depcheck@1
+RUN npm install -g jscpd@4 dependency-cruiser@16 madge@8 depcheck@1 ts-prune@0.10
 
 # Toolbox ESLint autonome (TS/Vue) : lint fiable sans dependre du repo cible.
 COPY scanners/eslint /opt/eslint-audit

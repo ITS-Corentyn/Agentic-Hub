@@ -5,6 +5,8 @@ import { registerRoutes } from './routes.js';
 import { registerAuthRoutes } from './auth.js';
 import { registerInsightRoutes } from './insights.js';
 import { registerRemediationRoutes } from './remediation.js';
+import { registerReportingRoutes } from './reporting.js';
+import { registerSystemRoutes } from './system.js';
 import { startQueue } from './queue.js';
 
 // Fastify sérialise via JSON.stringify, qui ne gère pas les BigInt
@@ -45,6 +47,8 @@ async function main() {
   await registerRoutes(app);
   await registerInsightRoutes(app);
   await registerRemediationRoutes(app);
+  await registerReportingRoutes(app);
+  await registerSystemRoutes(app);
 
   // Démarre la file pg-boss (workers audit local + synthèse).
   try {
