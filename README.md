@@ -1,3 +1,5 @@
+![Agentic-Hub](http://localhost:3200/api/repositories/cmq7x49lu0001mq1o4n58l874/badge.svg)
+
 # Agentic-Hub
 
 Plateforme d'audit **multi-repositories** — sécurité, dépendances, qualité de code,
