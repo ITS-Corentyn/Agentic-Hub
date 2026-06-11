@@ -17,7 +17,33 @@ const error = ref('');
 const activeDim = ref<Dimension | 'all'>('all');
 const toast = ref('');
 const depBusy = ref(false);
+const prBusy = ref(false);
 const schedule = ref('off');
+const lhUrl = ref('');
+
+async function onPrCheck() {
+  if (!audit.value) return;
+  prBusy.value = true;
+  try {
+    const { url } = await api.createPrCheck(audit.value.repository.id);
+    flash('PR « check de PR » ouverte');
+    window.open(url, '_blank');
+  } catch (e) {
+    flash(`Échec : ${(e as Error).message}`);
+  } finally {
+    prBusy.value = false;
+  }
+}
+
+async function saveLighthouse() {
+  if (!audit.value) return;
+  try {
+    await api.setLighthouse(audit.value.repository.id, lhUrl.value || null);
+    flash(lhUrl.value ? 'URL Lighthouse enregistrée' : 'Lighthouse désactivé');
+  } catch (e) {
+    flash((e as Error).message);
+  }
+}
 
 function flash(msg: string) {
   toast.value = msg;
@@ -98,6 +124,7 @@ async function load() {
     }
     audit.value = await api.getAudit(lastAudit.id);
     schedule.value = audit.value.repository.auditSchedule ?? 'off';
+    lhUrl.value = audit.value.repository.lighthouseUrl ?? '';
     findings.value = await api.getFindings(lastAudit.id);
     try {
       trend.value = (await api.getTrend(props.id)).map((p) => ({ date: p.date, score: p.score }));
@@ -155,7 +182,10 @@ onMounted(load);
           <a :href="api.csvUrl(audit.id)" class="btn-ghost">⬇ CSV</a>
           <button class="btn-ghost" @click="copyBadge">🏷️ Badge</button>
           <button class="btn-ghost" :disabled="depBusy" @click="onDependabotPr">
-            {{ depBusy ? '…' : '🤖 Activer Dependabot (PR)' }}
+            {{ depBusy ? '…' : '🤖 Dependabot (PR)' }}
+          </button>
+          <button class="btn-ghost" :disabled="prBusy" @click="onPrCheck">
+            {{ prBusy ? '…' : '🔁 Check de PR (PR)' }}
           </button>
           <select
             :value="schedule"
@@ -167,6 +197,17 @@ onMounted(load);
             <option value="daily">⏱ Audit quotidien</option>
             <option value="weekly">⏱ Audit hebdomadaire</option>
           </select>
+        </div>
+        <div class="mt-2 flex items-center gap-2">
+          <input
+            v-model="lhUrl"
+            type="url"
+            placeholder="URL Lighthouse (app déployée) — perf/a11y/SEO"
+            class="w-72 rounded-lg border border-white/10 bg-white/5 px-3 py-1.5 text-xs outline-none focus:border-brand-500"
+          />
+          <button class="rounded-md border border-white/10 px-2 py-1 text-xs text-slate-300 hover:bg-white/5" @click="saveLighthouse">
+            💡 Enregistrer
+          </button>
         </div>
       </div>
       <ScoreGauge :score="audit.globalScore ?? 0" :size="150" label="score global" />

@@ -13,6 +13,7 @@ import {
   normalizeMadge,
   normalizeNpmAudit,
   normalizeOsv,
+  normalizeLighthouse,
   normalizeSemgrep,
   normalizeTrivy,
   normalizeTsPrune,
@@ -27,6 +28,12 @@ export interface ScannerOutput {
   note?: string;
 }
 
+/** Contexte transmis aux runners (options dynamiques par audit). */
+export interface ScanContext {
+  /** URL d'une app web déployée pour l'audit Lighthouse (opt-in). */
+  lighthouseUrl?: string | null;
+}
+
 /** Sous-dossier de code à analyser (src si présent, sinon racine). */
 function codeDir(root: string): string {
   const src = join(root, 'src');
@@ -37,11 +44,34 @@ function tmpFile(ext = 'json'): string {
   return join(tmpdir(), `ah-${randomUUID()}.${ext}`);
 }
 
-type Runner = (root: string) => Promise<ScannerOutput>;
+type Runner = (root: string, ctx: ScanContext) => Promise<ScannerOutput>;
 
 function skipped(tool: ToolName, note = 'outil non installé'): ScannerOutput {
   return { tool, ran: false, raw: '', findings: [], note };
 }
+
+// ── Lighthouse (opt-in : nécessite une URL d'app déployée) ────
+const runLighthouse: Runner = async (root, ctx) => {
+  const url = ctx.lighthouseUrl?.trim();
+  if (!url) return skipped('lighthouse', 'aucune URL Lighthouse configurée');
+  if (!hasTool('lighthouse')) return skipped('lighthouse');
+  const res = await execAsync(
+    'lighthouse',
+    [
+      url,
+      '--quiet',
+      '--output=json',
+      '--output-path=stdout',
+      '--only-categories=performance,accessibility,seo,best-practices',
+      '--chrome-flags=--headless --no-sandbox --disable-gpu',
+    ],
+    root,
+    180_000,
+  );
+  const parsed = tryParseJson(res.stdout);
+  if (!parsed) return { tool: 'lighthouse', ran: false, raw: res.stderr, findings: [] };
+  return { tool: 'lighthouse', ran: true, raw: res.stdout, findings: normalizeLighthouse(parsed, url) };
+};
 
 // ── Semgrep ───────────────────────────────────────────────────
 const SEMGREP_CONFIGS = (process.env.SEMGREP_CONFIGS ?? 'p/security-audit,p/secrets,p/owasp-top-ten')
@@ -242,6 +272,7 @@ export const RUNNERS: Runner[] = [
   runJscpd,
   runDependencyCruiser,
   runMadge,
+  runLighthouse,
 ];
 
 /** Concurrence par défaut (équilibre vitesse / charge CPU-mémoire). */
@@ -253,6 +284,7 @@ const DEFAULT_CONCURRENCY = Number(process.env.SCAN_CONCURRENCY ?? 4);
  */
 export async function runAllScanners(
   root: string,
+  ctx: ScanContext = {},
   onProgress?: (tool: ToolName) => void,
   concurrency = DEFAULT_CONCURRENCY,
 ): Promise<ScannerOutput[]> {
@@ -264,7 +296,7 @@ export async function runAllScanners(
       const i = next++;
       if (i >= RUNNERS.length) return;
       try {
-        const out = await RUNNERS[i]!(root);
+        const out = await RUNNERS[i]!(root, ctx);
         results[i] = out;
         onProgress?.(out.tool);
       } catch {

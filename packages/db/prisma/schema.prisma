@@ -55,6 +55,7 @@ model Repository {
   auditSchedule String   @default("off") // off | daily | weekly
   policy        Json? // { minScore, maxCritical, maxHigh } — surcharge la politique par défaut
   scoringOverride Json? // pondérations de scoring spécifiques au repo (sinon globales)
+  lighthouseUrl String? // URL d'une app web déployée pour audit Lighthouse (opt-in)
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
 

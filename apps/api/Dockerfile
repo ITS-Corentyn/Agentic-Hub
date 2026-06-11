@@ -22,7 +22,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 ENV CHROME_PATH=/usr/bin/chromium
 
 # Outils Node globaux (qualité / architecture / dépendances)
-RUN npm install -g jscpd@4 dependency-cruiser@16 madge@8 depcheck@1 ts-prune@0.10
+RUN npm install -g jscpd@4 dependency-cruiser@16 madge@8 depcheck@1 ts-prune@0.10 lighthouse@12
 
 # Toolbox ESLint autonome (TS/Vue) : lint fiable sans dependre du repo cible.
 COPY scanners/eslint /opt/eslint-audit

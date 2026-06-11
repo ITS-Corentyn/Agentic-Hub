@@ -310,6 +310,21 @@ export async function registerRoutes(app: FastifyInstance) {
     }
   });
 
+  app.put('/api/repositories/:id/lighthouse', async (req, reply) => {
+    const { id } = req.params as { id: string };
+    const url = (req.body as any)?.url;
+    if (url !== null && typeof url !== 'string') return reply.code(400).send({ error: 'URL invalide' });
+    try {
+      await prisma.repository.update({
+        where: { id },
+        data: { lighthouseUrl: url ? String(url).trim() : null },
+      });
+      return { lighthouseUrl: url ? String(url).trim() : null };
+    } catch {
+      return reply.code(404).send({ error: 'Repository introuvable' });
+    }
+  });
+
   // ── Settings (scoring + politique par défaut + notifications) ─
   app.get('/api/settings', async () => {
     const s = await prisma.setting.findUnique({ where: { id: 1 } });

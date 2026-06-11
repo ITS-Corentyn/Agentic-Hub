@@ -385,6 +385,50 @@ export function normalizeJscpd(raw: any, root: string): Finding[] {
 }
 
 // ──────────────────────────────────────────────────────────────
+// Lighthouse — perf / accessibilité / SEO / best-practices (runtime)
+// ──────────────────────────────────────────────────────────────
+const LH_DIMENSION: Record<string, 'performance' | 'frontend'> = {
+  performance: 'performance',
+  accessibility: 'frontend',
+  seo: 'frontend',
+  'best-practices': 'frontend',
+};
+const LH_LABEL: Record<string, string> = {
+  performance: 'Performance',
+  accessibility: 'Accessibilité',
+  seo: 'SEO',
+  'best-practices': 'Bonnes pratiques',
+};
+
+export function normalizeLighthouse(raw: any, url: string): Finding[] {
+  const cats = raw?.categories;
+  if (!cats) return [];
+  const out: Finding[] = [];
+  for (const key of Object.keys(LH_DIMENSION)) {
+    const cat = cats[key];
+    if (!cat || typeof cat.score !== 'number') continue;
+    const pct = Math.round(cat.score * 100);
+    if (pct >= 90) continue; // bon score : pas de finding
+    const severity: Severity = pct < 50 ? 'high' : pct < 75 ? 'medium' : 'low';
+    out.push(
+      makeFinding({
+        dimension: LH_DIMENSION[key]!,
+        tool: 'lighthouse',
+        severity,
+        ruleId: `lighthouse-${key}`,
+        title: `Lighthouse ${LH_LABEL[key]} : ${pct}/100`,
+        description: `Le score Lighthouse "${LH_LABEL[key]}" est de ${pct}/100 sur ${url}.`,
+        filePath: null,
+        line: null,
+        remediation: `Consulter le rapport Lighthouse de ${url} et corriger les audits "${LH_LABEL[key]}" en échec.`,
+        reference: 'https://developer.chrome.com/docs/lighthouse',
+      }),
+    );
+  }
+  return out;
+}
+
+// ──────────────────────────────────────────────────────────────
 // dependency-cruiser — règles d'architecture / couplage
 // ──────────────────────────────────────────────────────────────
 export function normalizeDependencyCruiser(raw: any, root: string): Finding[] {

@@ -112,6 +112,70 @@ export async function getHeadSha(fullName: string, branch: string): Promise<stri
   }
 }
 
+/**
+ * Ouvre (ou met à jour) une PR ajoutant un fichier au repo. Générique :
+ * réutilisé pour Dependabot et le workflow de PR-check.
+ */
+export async function createFilePr(params: {
+  fullName: string;
+  branch: string;
+  path: string;
+  content: string;
+  commitMessage: string;
+  prTitle: string;
+  prBody: string;
+}): Promise<string> {
+  const gh = await client();
+  const [owner, repo] = params.fullName.split('/');
+  if (!owner || !repo) throw new Error('Repository invalide');
+
+  const { data: info } = await gh.repos.get({ owner, repo });
+  const base = info.default_branch;
+  const { data: baseRef } = await gh.git.getRef({ owner, repo, ref: `heads/${base}` });
+
+  try {
+    await gh.git.createRef({ owner, repo, ref: `refs/heads/${params.branch}`, sha: baseRef.object.sha });
+  } catch {
+    /* branche déjà présente */
+  }
+
+  let sha: string | undefined;
+  try {
+    const { data } = await gh.repos.getContent({ owner, repo, path: params.path, ref: params.branch });
+    if (!Array.isArray(data) && 'sha' in data) sha = data.sha;
+  } catch {
+    /* fichier absent */
+  }
+
+  await gh.repos.createOrUpdateFileContents({
+    owner,
+    repo,
+    path: params.path,
+    message: params.commitMessage,
+    content: Buffer.from(params.content, 'utf8').toString('base64'),
+    branch: params.branch,
+    sha,
+  });
+
+  const { data: existing } = await gh.pulls.list({
+    owner,
+    repo,
+    head: `${owner}:${params.branch}`,
+    state: 'open',
+  });
+  if (existing.length) return existing[0]!.html_url;
+
+  const { data: pr } = await gh.pulls.create({
+    owner,
+    repo,
+    title: params.prTitle,
+    head: params.branch,
+    base,
+    body: params.prBody,
+  });
+  return pr.html_url;
+}
+
 const DEPENDABOT_BRANCH = 'agentic-hub/add-dependabot';
 
 /**

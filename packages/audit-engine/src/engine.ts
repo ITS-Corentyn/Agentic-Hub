@@ -22,6 +22,8 @@ export interface RunAuditOptions {
   onProgress?: (tool: ToolName) => void;
   /** Conserver les sorties brutes des scanners (artefacts). */
   keepRaw?: boolean;
+  /** URL d'une app web déployée pour l'audit Lighthouse (opt-in). */
+  lighthouseUrl?: string | null;
 }
 
 export interface RunAuditResult {
@@ -40,7 +42,11 @@ export async function runAudit(root: string, opts: RunAuditOptions = {}): Promis
 
   const metrics = computeMetrics(root);
 
-  const scannerOutputs: ScannerOutput[] = await runAllScanners(root, opts.onProgress);
+  const scannerOutputs: ScannerOutput[] = await runAllScanners(
+    root,
+    { lighthouseUrl: opts.lighthouseUrl },
+    opts.onProgress,
+  );
   const dependabot = analyzeDependabot(root);
   opts.onProgress?.('engine');
 

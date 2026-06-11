@@ -1,6 +1,54 @@
 import type { FastifyInstance } from 'fastify';
 import { prisma } from '@agentic-hub/db';
-import { createDependabotPr, createIssueFromFinding } from './github.js';
+import { createDependabotPr, createFilePr, createIssueFromFinding } from './github.js';
+
+// Workflow GitHub Actions de check de PR : audit + commentaire + statut bloquant.
+const PR_CHECK_WORKFLOW = `name: Agentic-Hub PR Audit
+on:
+  pull_request:
+permissions:
+  contents: read
+  pull-requests: write
+jobs:
+  audit:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Recuperer le moteur Agentic-Hub
+        uses: actions/checkout@v4
+        with:
+          repository: ITS-Corentyn/Agentic-Hub
+          path: .agentic-engine
+          token: \${{ secrets.AGENTIC_HUB_TOKEN }}
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - run: corepack enable
+      - name: Build du moteur
+        working-directory: .agentic-engine
+        run: |
+          pnpm install --frozen-lockfile=false
+          pnpm --filter @agentic-hub/shared build
+          pnpm --filter @agentic-hub/audit-engine build
+      - name: Installer les scanners
+        run: |
+          pip install semgrep
+          curl -sfL https://raw.githubusercontent.com/aquasecurity/trivy/main/contrib/install.sh | sudo sh -s -- -b /usr/local/bin
+          curl -sSL -o osv-scanner "https://github.com/google/osv-scanner/releases/download/v1.9.1/osv-scanner_linux_amd64" && sudo install osv-scanner /usr/local/bin/osv-scanner
+          GZ=8.21.2; curl -sSL "https://github.com/gitleaks/gitleaks/releases/download/v\${GZ}/gitleaks_\${GZ}_linux_x64.tar.gz" | sudo tar -xz -C /usr/local/bin gitleaks
+          npm i -g jscpd@4 dependency-cruiser@16 madge@8 depcheck@1 ts-prune@0.10 eslint@9 @eslint/js@9
+      - name: Audit (gate sur findings eleves+)
+        run: node .agentic-engine/packages/audit-engine/dist/cli.js scan . --report report.md --fail-on-severity high
+      - name: Commentaire de PR
+        if: always()
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            let body = '## Agentic-Hub — audit de la PR\\n';
+            try { body += fs.readFileSync('report.md','utf8').slice(0, 60000); } catch (e) { body += '_Rapport indisponible._'; }
+            await github.rest.issues.createComment({ ...context.repo, issue_number: context.issue.number, body });
+`;
 
 const LANG_TO_ECOSYSTEM: Record<string, string> = {
   TypeScript: 'npm',
@@ -45,6 +93,29 @@ export async function registerRemediationRoutes(app: FastifyInstance) {
     const ecosystems = [...new Set([repo.language ?? 'JavaScript'].map((l) => LANG_TO_ECOSYSTEM[l] ?? 'npm'))];
     try {
       const url = await createDependabotPr(repo.fullName, ecosystems);
+      return { url };
+    } catch (err) {
+      return reply.code(502).send({ error: `Echec de creation de la PR : ${(err as Error).message}` });
+    }
+  });
+
+  // Ouvre une PR ajoutant le workflow de check de PR (audit a chaque PR).
+  app.post('/api/repositories/:id/pr-check', async (req, reply) => {
+    const { id } = req.params as { id: string };
+    const repo = await prisma.repository.findUnique({ where: { id } });
+    if (!repo) return reply.code(404).send({ error: 'Repository introuvable' });
+    try {
+      const url = await createFilePr({
+        fullName: repo.fullName,
+        branch: 'agentic-hub/pr-check',
+        path: '.github/workflows/agentic-pr-check.yml',
+        content: PR_CHECK_WORKFLOW,
+        commitMessage: 'ci: audit Agentic-Hub a chaque PR',
+        prTitle: 'ci: check de PR Agentic-Hub',
+        prBody:
+          "Ajoute un audit automatique a chaque pull request (commentaire + statut bloquant si findings eleves).\\n\\n" +
+          'Pre-requis : definir le secret `AGENTIC_HUB_TOKEN` (PAT avec acces en lecture au depot Agentic-Hub).\\n\\n_Genere par Agentic-Hub._',
+      });
       return { url };
     } catch (err) {
       return reply.code(502).send({ error: `Echec de creation de la PR : ${(err as Error).message}` });

@@ -57,6 +57,7 @@ export async function runLocalAudit(auditId: string): Promise<void> {
       repoFullName: repo.fullName,
       repoUrl: repo.url,
       scoring: (repo.scoringOverride as any) ?? (setting?.scoring as any) ?? undefined,
+      lighthouseUrl: repo.lighthouseUrl,
       keepRaw: true,
       onProgress: (tool) =>
         sseHub.publish({ type: 'log', auditId, message: `scanner: ${tool}` }),

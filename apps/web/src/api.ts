@@ -24,6 +24,7 @@ export interface RepoSummary {
   description: string | null;
   lastAuditAt: string | null;
   auditSchedule?: 'off' | 'daily' | 'weekly';
+  lighthouseUrl?: string | null;
   audits: {
     id: string;
     status: AuditStatus;
@@ -188,6 +189,13 @@ export const api = {
     http<{ url: string }>(`/api/repositories/${repoId}/dependabot-pr`, { method: 'POST', body: '{}' }),
   createIssue: (findingId: string) =>
     http<{ url: string }>(`/api/findings/${findingId}/issue`, { method: 'POST', body: '{}' }),
+  createPrCheck: (repoId: string) =>
+    http<{ url: string }>(`/api/repositories/${repoId}/pr-check`, { method: 'POST', body: '{}' }),
+  setLighthouse: (repoId: string, url: string | null) =>
+    http<{ lighthouseUrl: string | null }>(`/api/repositories/${repoId}/lighthouse`, {
+      method: 'PUT',
+      body: JSON.stringify({ url }),
+    }),
 
   getSettings: () =>
     http<{ scoring: any; policy: any; notify: { webhookUrl: string; mode: string } }>('/api/settings'),
