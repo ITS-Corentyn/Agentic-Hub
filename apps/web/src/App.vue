@@ -5,6 +5,7 @@ import { api, type GithubStatus } from './api';
 import { auth, loadAuth } from './lib/auth';
 import { ROLE_LABELS } from './lib/ui';
 import CommandPalette from './components/CommandPalette.vue';
+import ToastHost from './components/ToastHost.vue';
 
 const health = ref<{ hybridMode: boolean; ollama: boolean } | null>(null);
 const gh = ref<GithubStatus | null>(null);
@@ -130,4 +131,6 @@ onMounted(async () => {
 
     <CommandPalette ref="palette" />
   </div>
+
+  <ToastHost />
 </template>

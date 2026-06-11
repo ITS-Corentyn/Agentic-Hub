@@ -113,7 +113,10 @@ export interface GithubStatus {
 }
 
 export const api = {
-  health: () => http<{ ok: boolean; hybridMode: boolean; ollama: boolean }>('/api/health'),
+  health: () =>
+    http<{ ok: boolean; db?: boolean; hybridMode: boolean; ollama: boolean; ollamaEnabled?: boolean }>(
+      '/api/health',
+    ),
   githubStatus: () => http<GithubStatus>('/api/auth/github/status'),
   githubLoginUrl: () => `${BASE}/api/auth/github/login`,
   githubLogout: () => http<{ ok: boolean }>('/api/auth/github/logout', { method: 'POST', body: '{}' }),

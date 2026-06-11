@@ -11,6 +11,7 @@ import { registerRemediationRoutes } from './remediation.js';
 import { registerReportingRoutes } from './reporting.js';
 import { registerSystemRoutes } from './system.js';
 import { registerUserRoutes } from './users.js';
+import { registerWebhookRoutes } from './webhooks.js';
 import { startQueue } from './queue.js';
 
 // Fastify sérialise via JSON.stringify, qui ne gère pas les BigInt
@@ -47,7 +48,9 @@ async function main() {
   app.addContentTypeParser(
     'application/json',
     { parseAs: 'string' },
-    (_req, body, done) => {
+    (req, body, done) => {
+      // Conserve le corps brut (vérification de signature des webhooks GitHub).
+      (req as unknown as { rawBody?: string }).rawBody = body as string;
       const text = (body as string).trim();
       if (!text) return done(null, {});
       try {
@@ -66,6 +69,7 @@ async function main() {
   await registerReportingRoutes(app);
   await registerSystemRoutes(app);
   await registerUserRoutes(app);
+  await registerWebhookRoutes(app);
 
   // Démarre la file pg-boss (workers audit local + synthèse).
   try {

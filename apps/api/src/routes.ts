@@ -35,11 +35,31 @@ const LANG_TO_ECOSYSTEM: Record<string, string> = {
 };
 
 export async function registerRoutes(app: FastifyInstance) {
-  app.get('/api/health', async () => ({
-    ok: true,
-    hybridMode: config.hybridMode,
-    ollama: config.ollama.enabled,
-  }));
+  app.get('/api/health', async () => {
+    let db = false;
+    try {
+      await prisma.$queryRaw`SELECT 1`;
+      db = true;
+    } catch {
+      /* DB down */
+    }
+    let ollama = false;
+    if (config.ollama.enabled) {
+      try {
+        const r = await fetch(`${config.ollama.url}/api/tags`, { signal: AbortSignal.timeout(2500) });
+        ollama = r.ok;
+      } catch {
+        /* Ollama injoignable */
+      }
+    }
+    return {
+      ok: db,
+      db,
+      ollama,
+      ollamaEnabled: config.ollama.enabled,
+      hybridMode: config.hybridMode,
+    };
+  });
 
   // ── Repositories ────────────────────────────────────────────
   app.get('/api/repositories', async () => {

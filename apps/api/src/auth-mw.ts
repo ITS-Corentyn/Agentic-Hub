@@ -18,7 +18,8 @@ function isPublic(path: string): boolean {
     p === '/api/auth/github/login' ||
     p === '/api/auth/github/callback' ||
     p === '/api/auth/github/status' ||
-    p === '/api/system/version'
+    p === '/api/system/version' ||
+    p === '/api/webhooks/github'
   ) {
     return true;
   }

@@ -10,6 +10,7 @@ export const QUEUE_LOCAL_AUDIT = 'audit.local';
 export const QUEUE_SYNTHESIS = 'audit.synthesis';
 export const QUEUE_SCHEDULE_TICK = 'audit.schedule-tick';
 export const QUEUE_DIGEST = 'digest.weekly';
+export const QUEUE_SESSION_CLEANUP = 'session.cleanup';
 
 let boss: PgBoss | null = null;
 
@@ -23,6 +24,7 @@ export async function startQueue(): Promise<PgBoss> {
   await boss.createQueue(QUEUE_SYNTHESIS);
   await boss.createQueue(QUEUE_SCHEDULE_TICK);
   await boss.createQueue(QUEUE_DIGEST);
+  await boss.createQueue(QUEUE_SESSION_CLEANUP);
 
   // Worker : audit local (clone + scan + ingest).
   await boss.work<{ auditId: string }>(QUEUE_LOCAL_AUDIT, async (jobs) => {
@@ -69,6 +71,16 @@ export async function startQueue(): Promise<PgBoss> {
     }
   });
   await boss.schedule(QUEUE_DIGEST, '0 8 * * 1');
+
+  // Nettoyage quotidien des sessions expirées.
+  await boss.work(QUEUE_SESSION_CLEANUP, async () => {
+    try {
+      await prisma.session.deleteMany({ where: { expiresAt: { lt: new Date() } } });
+    } catch (err) {
+      console.error('[session-cleanup]', (err as Error).message);
+    }
+  });
+  await boss.schedule(QUEUE_SESSION_CLEANUP, '30 3 * * *');
 
   return boss;
 }

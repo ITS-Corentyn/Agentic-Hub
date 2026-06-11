@@ -6,6 +6,7 @@ import { api, type RepoSummary } from '../api';
 import { scoreColor } from '../lib/ui';
 import { auth } from '../lib/auth';
 import RepoCard from '../components/RepoCard.vue';
+import Skeleton from '../components/Skeleton.vue';
 
 const router = useRouter();
 const repos = ref<RepoSummary[]>([]);
@@ -164,7 +165,16 @@ onMounted(load);
       {{ error }}
     </p>
 
-    <p v-if="loading" class="text-sm text-slate-400">Chargement…</p>
+    <div v-if="loading" class="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3">
+      <div v-for="i in 6" :key="i" class="card space-y-4 p-5">
+        <div class="flex items-start justify-between gap-3">
+          <div class="flex-1 space-y-2"><Skeleton height="1rem" /><Skeleton height="0.75rem" /></div>
+          <Skeleton height="84px" rounded="9999px" :style="{ width: '84px' }" />
+        </div>
+        <Skeleton height="2.5rem" />
+        <Skeleton height="2.25rem" />
+      </div>
+    </div>
     <p v-else-if="!repos.length" class="card p-8 text-center text-slate-400">
       Aucun repository. Clique « <strong>Se connecter</strong> » (en haut à droite) pour lier ton compte GitHub,
       puis « Synchroniser GitHub » pour importer tes repos et ceux de tes organisations.

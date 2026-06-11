@@ -3,9 +3,11 @@ import { computed, onMounted, ref } from 'vue';
 import { api, type AuditDetail, type Dimension, type Finding, type RepoSummary } from '../api';
 import { DIMENSION_LABELS, scoreColor } from '../lib/ui';
 import { auth } from '../lib/auth';
+import { toast } from '../lib/toast';
 import ScoreGauge from '../components/ScoreGauge.vue';
 import FindingsTable from '../components/FindingsTable.vue';
 import TrendChart from '../components/TrendChart.vue';
+import Skeleton from '../components/Skeleton.vue';
 
 const props = defineProps<{ id: string }>();
 
@@ -19,7 +21,6 @@ const compareId = ref('');
 const loading = ref(true);
 const error = ref('');
 const activeDim = ref<Dimension | 'all'>('all');
-const toast = ref('');
 const depBusy = ref(false);
 const prBusy = ref(false);
 const schedule = ref('off');
@@ -50,8 +51,7 @@ async function saveLighthouse() {
 }
 
 function flash(msg: string) {
-  toast.value = msg;
-  setTimeout(() => (toast.value = ''), 5000);
+  toast(msg);
 }
 
 async function onSchedule(e: Event) {
@@ -176,7 +176,13 @@ onMounted(load);
 </script>
 
 <template>
-  <section v-if="loading" class="text-sm text-slate-400">Chargement du rapport…</section>
+  <section v-if="loading" class="space-y-4">
+    <div class="card p-6"><Skeleton height="2rem" /><div class="mt-3"><Skeleton height="1rem" /></div></div>
+    <div class="card p-6"><Skeleton height="120px" /></div>
+    <div class="space-y-2">
+      <Skeleton v-for="i in 5" :key="i" height="3rem" />
+    </div>
+  </section>
   <section v-else-if="error" class="card p-8 text-center text-slate-400">{{ error }}</section>
 
   <section v-else-if="audit" class="space-y-8">
@@ -371,14 +377,5 @@ onMounted(load);
       />
     </div>
 
-    <!-- Toast -->
-    <Transition name="fade">
-      <div
-        v-if="toast"
-        class="fixed bottom-6 right-6 z-30 rounded-lg border border-white/10 bg-ink-800 px-4 py-3 text-sm text-slate-100 shadow-xl"
-      >
-        {{ toast }}
-      </div>
-    </Transition>
   </section>
 </template>

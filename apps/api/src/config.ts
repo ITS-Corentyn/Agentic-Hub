@@ -11,6 +11,8 @@ export const config = {
     /** Repo hébergeant le workflow d'audit (owner/repo). Vide ⇒ mode local. */
     workflowRepo: process.env.AUDIT_WORKFLOW_REPO ?? '',
     workflowFile: process.env.AUDIT_WORKFLOW_FILE ?? 'audit.yml',
+    /** Secret de vérification des webhooks GitHub (push → audit auto). */
+    webhookSecret: process.env.GITHUB_WEBHOOK_SECRET ?? '',
     // GitHub App (alternative à l'OAuth : quotas élevés, permissions fines).
     app: {
       appId: process.env.GITHUB_APP_ID ?? '',

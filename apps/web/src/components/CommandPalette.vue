@@ -87,10 +87,11 @@ defineExpose({ show });
 <template>
   <Teleport to="body">
     <div v-if="open" class="fixed inset-0 z-50 flex items-start justify-center bg-black/50 pt-28" @click.self="hide">
-      <div class="card w-full max-w-lg overflow-hidden">
+      <div class="card w-full max-w-lg overflow-hidden" role="dialog" aria-modal="true" aria-label="Palette de commandes">
         <input
           ref="input"
           v-model="query"
+          aria-label="Recherche de commande"
           placeholder="Tape une commande ou un repo… (Échap pour fermer)"
           class="w-full bg-transparent px-4 py-3 text-sm outline-none"
           @keydown.stop
